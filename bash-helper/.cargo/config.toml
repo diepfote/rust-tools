@@ -1,0 +1,3 @@
+[target.x86_64-unknown-linux-gnu]
+linker = "../bin/zig-cc"  # this helper calls `zig cc`
+
