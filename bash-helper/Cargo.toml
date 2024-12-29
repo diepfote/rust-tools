@@ -1,0 +1,13 @@
+[package]
+name = "bash-helper"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+# https://www.perplexity.ai/search/rust-cargo-use-every-optimizat-1JfO7gmcTP2UuXRIMG.e6g#2
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+panic = "abort"
