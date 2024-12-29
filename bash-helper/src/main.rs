@@ -51,10 +51,12 @@ fn update_tmux_display(os_cloud: &str, kubecfg: &str) {
     refresh_tmux();
 }
 
-fn print_shortened_path(path: &str, home: &str, color: &str, no_color: &str, in_container: bool) {
+fn print_shortened_path(path: &str, home: &str, color: &str, not_host_env_color: &str, no_color: &str, in_container: bool) {
     let mut prefix : String = "".to_string();
     if in_container {
+        prefix += not_host_env_color;
         prefix += "NOT_HOST_ENV: ";
+        prefix += no_color;
     }
 
     // let mut tokens: Vec<&str> = path.split('/').collect();
@@ -110,22 +112,23 @@ fn main() {
 
     let env_keys = ["HOME", "PWD", "NOT_HOST_ENV",
                     "OS_CLOUD", "KUBECONFIG", "GREEN",
-                    "BLUE", "NC", "VIRTUAL_ENV"];
+                    "BLUE", "RED", "NC", "VIRTUAL_ENV"];
     let env = read_env_variables(&env_keys);
     let pwd = env["PWD"].as_str();
     let venv = env["VIRTUAL_ENV"].as_str();
     let home = env["HOME"].as_str();
     let blue = env["BLUE"].as_str();
     let green = env["GREEN"].as_str();
+    let red = env["RED"].as_str();
     let no_color = env["NC"].as_str();
 
     let not_host_env = env["NOT_HOST_ENV"].as_str();
     let in_container = if not_host_env.len() == 0 { false } else  { true };
 
-    print_shortened_path(pwd, home, green, no_color, in_container);
+    print_shortened_path(pwd, home, green, red, no_color, in_container);
     if venv.len() > 0 {
         print!(" (");
-        print_shortened_path(venv, home, blue, no_color, in_container);
+        print_shortened_path(venv, home, blue, red, no_color, in_container);
         print!(")");
     }
     println!("\n$ ");
