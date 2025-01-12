@@ -85,10 +85,10 @@ fn print_shortened_path(path: &str, home: &str, color: &str, not_host_env_color:
         // println!("idx: {}", idx);
         // println!("tokens_len: {}", tokens_len);
 
-        if idx == (tokens_len -2) {
+        if idx == (tokens_len - 2) || idx == (tokens_len - 3)  {
             continue;
         }
-        if idx == tokens_len -1 {
+        if idx == (tokens_len - 1) {
             break;
         }
         // println!("after len.");
