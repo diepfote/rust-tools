@@ -11,4 +11,4 @@ build:
 	cargo build --future-incompat-report --release
 
 build-cross:
-	cargo build --target x86_64-unknown-linux-gnu --release
+	cargo build --target x86_64-unknown-linux-gnu
