@@ -10,10 +10,12 @@ use std::process::Command;
 
 
 fn refresh_tmux() {
-    Command::new("tmux")
+    let _ = Command::new("tmux")
         .arg("refresh-client")
         .spawn()
-     .expect("Failed to start process");
+        .map_err(|e| {
+    // println!("Failed to execute `tmux refresh-client`: {}", e);
+});
 }
 
 
@@ -132,6 +134,7 @@ fn main() {
         print!(")");
     }
     println!("\n$ ");
+
 
     update_tmux_display(env["OS_CLOUD"].as_str(), env["KUBECONFIG"].as_str());
 
