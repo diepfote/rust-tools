@@ -8,6 +8,7 @@ use std::string::FromUtf8Error;
 
 use std::process::Command;
 
+mod logging;
 
 fn refresh_tmux() {
     let _ = Command::new("tmux")
@@ -111,7 +112,6 @@ fn print_shortened_path(path: &str, home: &str, color: &str, not_host_env_color:
 }
 
 fn main() {
-
     let env_keys = ["HOME", "PWD", "NOT_HOST_ENV",
                     "OS_CLOUD", "KUBECONFIG", "GREEN",
                     "BLUE", "RED", "NC", "VIRTUAL_ENV"];
@@ -123,6 +123,9 @@ fn main() {
     let green = env["GREEN"].as_str();
     let red = env["RED"].as_str();
     let no_color = env["NC"].as_str();
+
+    debug!("green: {}", green);
+    debug!("venv: {}", green);
 
     let not_host_env = env["NOT_HOST_ENV"].as_str();
     let in_container = if not_host_env.len() == 0 { false } else  { true };
