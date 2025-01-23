@@ -15,7 +15,7 @@ fn refresh_tmux() {
         .arg("refresh-client")
         .spawn()
         .map_err(|e| {
-    // println!("Failed to execute `tmux refresh-client`: {}", e);
+    debug!("Failed to execute `tmux refresh-client`: {}", e);
 });
 }
 
@@ -40,7 +40,7 @@ fn read_env_variables(keys: &[&str]) -> HashMap<String, String> {
             env_map.insert(key.to_string(), value);
         } else {
             env_map.insert(key.to_string(), "".to_string());
-            // println!("Environment variable {} is not set", key);
+            debug!("Environment variable {} is not set", key);
         }
     }
 
@@ -64,6 +64,7 @@ fn print_shortened_path(path: &str, home: &str, color: &str, not_host_env_color:
 
     // let mut tokens: Vec<&str> = path.split('/').collect();
     let mut tokens: Vec<String> = path.split('/').map(|s| s.to_string()).collect();
+    debug!("tokens before drain: {:?}", tokens);
     if home.len() > 0 && path.starts_with(home) {
         prefix += "~/";
 
@@ -76,25 +77,25 @@ fn print_shortened_path(path: &str, home: &str, color: &str, not_host_env_color:
             }
         }
     }
-    // println!("prefix: {}", prefix);
-    // println!("tokens: {:?}", tokens);
+    debug!("prefix: {}", prefix);
+    debug!("tokens after drain: {:?}", tokens);
 
     // if we do not cast this will end up an uint
     // this will result in a crash if a substractions
     // results in a value less than 0.
     let tokens_len = tokens.len() as i8;
-    let mut idx = 0;
+    debug!("tokens_len: {}", tokens_len);
+    let mut tokens_idx = -1;
     for t in &mut tokens {
-        // println!("idx: {}", idx);
-        // println!("tokens_len: {}", tokens_len);
+        tokens_idx += 1;
+        debug!("token: {}, tokens_idx: {}", t, tokens_idx);
 
-        if idx == (tokens_len - 2) || idx == (tokens_len - 3)  {
+        if tokens_idx == (tokens_len - 2) || tokens_idx == (tokens_len - 3)  {
             continue;
         }
-        if idx == (tokens_len - 1) {
+        if tokens_idx == (tokens_len - 1) {
             break;
         }
-        // println!("after len.");
 
         if t.len() > 1 {
             if t.starts_with(".") {
@@ -103,11 +104,10 @@ fn print_shortened_path(path: &str, home: &str, color: &str, not_host_env_color:
                 t.truncate(1);
             }
         }
-        idx += 1;
     }
-    // println!("tokens: {:?}", tokens);
+    debug!("tokens after truncation: {:?}", tokens);
     let joined = tokens.join("/");
-    // println!("joined: {}", joined);
+    debug!("joined: {}", joined);
     print!("{}{}{}{}", color, prefix, joined, no_color);
 }
 
@@ -124,8 +124,7 @@ fn main() {
     let red = env["RED"].as_str();
     let no_color = env["NC"].as_str();
 
-    debug!("green: {}", green);
-    debug!("venv: {}", green);
+    debug!("venv: {}", venv);
 
     let not_host_env = env["NOT_HOST_ENV"].as_str();
     let in_container = if not_host_env.len() == 0 { false } else  { true };
