@@ -1,5 +1,5 @@
 [package]
-name = "bash-helper"
+name = "bash_helper"
 version = "0.1.0"
 edition = "2021"
 

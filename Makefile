@@ -5,10 +5,10 @@ build_and_run: build run
 
 .PHONY: run
 run:
-	time ./target/release/bash-helper
+	time ./target/release/bash_helper
 .PHONY: run-debug
 run-debug:
-	./target/debug/bash-helper
+	./target/debug/bash_helper
 
 .PHONY: build
 build:

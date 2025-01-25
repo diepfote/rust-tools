@@ -1,14 +1,13 @@
-use std::collections::HashMap;
-use std::env;
-
-use std::fs::read;
-use std::fs::write;
-
-use std::string::FromUtf8Error;
-
 use std::process::Command;
 
 mod logging;
+
+mod file_io;
+pub use file_io::read_file;
+pub use file_io::write_file;
+
+mod environment;
+pub use environment::read_env_variables;
 
 fn refresh_tmux() {
     let _ = Command::new("tmux")
@@ -19,33 +18,6 @@ fn refresh_tmux() {
 });
 }
 
-
-fn read_file(filename: &str) -> Result<String, FromUtf8Error> {
-    let content = read(filename).unwrap();
-    return String::from_utf8(content);
-}
-
-fn write_file(filename: &str, content: &str) -> () {
-    write(filename, content).unwrap();
-}
-
-fn read_env_variables(keys: &[&str]) -> HashMap<String, String> {
-    // snatched from
-    // https://www.perplexity.ai/search/rust-get-env-variables-0QlZdWpaQuGXp.HG60dwCA#3
-
-    let mut env_map = HashMap::new();
-
-    for key in keys {
-        if let Ok(value) = env::var(key) {
-            env_map.insert(key.to_string(), value);
-        } else {
-            env_map.insert(key.to_string(), "".to_string());
-            debug!("Environment variable {} is not set", key);
-        }
-    }
-
-    env_map
-}
 
 fn update_tmux_display(os_cloud: &str, kubecfg: &str) {
     write_file("/tmp/._kubeconfig", kubecfg);
