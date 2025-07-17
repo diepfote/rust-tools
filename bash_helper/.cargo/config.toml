@@ -1,5 +1,5 @@
 [target.x86_64-unknown-linux-gnu]
-linker = "../bin/zig-cc-x86_64"  # this helper calls `zig cc`
+linker = "../.bin/zig-cc-x86_64"  # this helper calls `zig cc`
 
 [target.aarch64-unknown-linux-gnu]
-linker = "../bin/zig-cc-aarch64"  # this helper calls `zig cc`
+linker = "../.bin/zig-cc-aarch64"  # this helper calls `zig cc`
