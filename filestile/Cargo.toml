@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+chrono = "0.4.31"
 
 # https://www.perplexity.ai/search/rust-cargo-use-every-optimizat-1JfO7gmcTP2UuXRIMG.e6g#2
 [profile.release]
