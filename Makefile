@@ -3,6 +3,9 @@ SHELL := bash
 .PHONY: build_and_run
 build_and_run: build run
 
+.PHONY: debug_build_and_run
+debug_build_and_run: build-debug run-debug
+
 .PHONY: run
 run:
 	../run.sh target/release
