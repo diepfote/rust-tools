@@ -16,17 +16,10 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     use lexopt::prelude::*;
 
     let mut path = None;
-    // @TODO: allow multiple patterns
     let mut patterns: Vec<OsString> = Vec::new();
-    // @TODO: allow multiple patterns
-    // let mut literal = None;
     let mut parser = lexopt::Parser::from_env();
     while let Some(arg) = parser.next()? {
         match arg {
-            // Short('f') => {
-            //     literal = parser.value()?.string()?;
-            // }
-
             Short('e') | Long("patterns") => {
                 patterns = parser.values()?.collect();
             }
@@ -52,6 +45,14 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     })
 }
 
+
+// [{name: timestamp}, {name: timestamp}]
+struct File {
+    name: String,
+    timestamp: i64,
+}
+
+
 fn main() -> Result<(), lexopt::Error> {
 
     let args = parse_args()?;
@@ -61,8 +62,15 @@ fn main() -> Result<(), lexopt::Error> {
     debug!("patterns: {:?}", args.patterns);
 
     static RE: OnceLock<Regex> = OnceLock::new();
-    let pattern = args.patterns[0].to_string_lossy();
-    let re = RE.get_or_init(|| Regex::new(&pattern).unwrap());
+    let patterns = args.patterns
+        .iter()
+        .map(|os| "(".to_owned() + &os.to_string_lossy() + ")")
+        .collect::<Vec<_>>()
+        .join("|");
+    let re = RE.get_or_init(|| Regex::new(&patterns).unwrap());
+    debug!("re: {:?}", re);
+
+    println!("");
 
     match fs::read_dir(path) {
         Ok(dir) => {
@@ -73,40 +81,31 @@ fn main() -> Result<(), lexopt::Error> {
                         if metadata.is_dir() {
                             continue;
                         }
-                        println!("---");
-                        let modified_nsec = metadata.modified();
-                        let created_nsec = metadata.created();
-
-                        if let Ok(modified_nsec) = modified_nsec {
-                            let modified: DateTime<Utc> = DateTime::<Utc>::from(modified_nsec);
-                            debug!("{}: modified @{}", entry.file_name().to_string_lossy(), modified);
-                        }
-
-                        if let Ok(created_nsec) = created_nsec {
-                            let created: DateTime<Utc> = DateTime::<Utc>::from(created_nsec);
-                            debug!("{}: created @{}", entry.file_name().to_string_lossy(), created);
-                        }
-
-                        // debug!("{}", entry.file_name().to_string_lossy());
-                        // debug!("{:?}: {:?}", entry.path(), metadata.permissions());
-                        // debug!("{}: {:?}", entry.file_name().to_string_lossy(), metadata.permissions());
-                    }
 
                     let p = entry.path().to_string_lossy().to_string();
 
-                    if let Some(caps) = re.captures(&p) {
-                        debug!("captures: {:?}", caps);
-                        // Print all numbered groups
-                        for (i, m) in caps.iter().enumerate() {
-                            if let Some(mat) = m {
-                                debug!("Group {}: {}", i, mat.as_str());
-                            }
-                        }
+                    if re.is_match(&p) {
+                        log_info!("Matched: {}", p);
                     } else {
-                        debug!("No match.");
+                        debug!("No match: {}\n---", p);
+                        continue;
                     }
 
-                    debug!("re: {:?}", re);
+                    let modified_nsec = metadata.modified();
+                    let created_nsec = metadata.created();
+
+                    if let Ok(modified_nsec) = modified_nsec {
+                        let _modified: DateTime<Utc> = DateTime::<Utc>::from(modified_nsec);
+                        debug!("{}: modified @{}", entry.file_name().to_string_lossy(), _modified);
+                    }
+
+                    if let Ok(created_nsec) = created_nsec {
+                        let _created: DateTime<Utc> = DateTime::<Utc>::from(created_nsec);
+                        debug!("{}: created @{}", entry.file_name().to_string_lossy(), _created);
+                    }
+
+                    println!("---");
+                    }
                  }
             }
         }
