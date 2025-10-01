@@ -1,6 +1,8 @@
 use std::fs;
 use std::ffi::OsString;
 use chrono::{DateTime, Utc};
+use regex::Regex;
+use std::sync::OnceLock;
 
 mod logging;
 
@@ -57,14 +59,21 @@ fn main() -> Result<(), lexopt::Error> {
 
     debug!("path: {}", path);
     debug!("patterns: {:?}", args.patterns);
+
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let pattern = args.patterns[0].to_string_lossy();
+    let re = RE.get_or_init(|| Regex::new(&pattern).unwrap());
+
     match fs::read_dir(path) {
         Ok(dir) => {
             for entry in dir {
                 if let Ok(entry) = entry {
+
                     if let Ok(metadata) = entry.metadata() {
                         if metadata.is_dir() {
                             continue;
                         }
+                        println!("---");
                         let modified_nsec = metadata.modified();
                         let created_nsec = metadata.created();
 
@@ -83,6 +92,21 @@ fn main() -> Result<(), lexopt::Error> {
                         // debug!("{}: {:?}", entry.file_name().to_string_lossy(), metadata.permissions());
                     }
 
+                    let p = entry.path().to_string_lossy().to_string();
+
+                    if let Some(caps) = re.captures(&p) {
+                        debug!("captures: {:?}", caps);
+                        // Print all numbered groups
+                        for (i, m) in caps.iter().enumerate() {
+                            if let Some(mat) = m {
+                                debug!("Group {}: {}", i, mat.as_str());
+                            }
+                        }
+                    } else {
+                        debug!("No match.");
+                    }
+
+                    debug!("re: {:?}", re);
                  }
             }
         }
