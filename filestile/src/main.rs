@@ -1,9 +1,13 @@
 use std::fs;
+use std::ffi::OsString;
 use chrono::{DateTime, Utc};
+
+mod logging;
 
 struct Args {
     path: String,
-    pattern: String,
+    patterns: Vec<OsString>,
+
 }
 
 fn parse_args() -> Result<Args, lexopt::Error> {
@@ -11,7 +15,7 @@ fn parse_args() -> Result<Args, lexopt::Error> {
 
     let mut path = None;
     // @TODO: allow multiple patterns
-    let mut pattern = None;
+    let mut patterns: Vec<OsString> = Vec::new();
     // @TODO: allow multiple patterns
     // let mut literal = None;
     let mut parser = lexopt::Parser::from_env();
@@ -21,15 +25,15 @@ fn parse_args() -> Result<Args, lexopt::Error> {
             //     literal = parser.value()?.string()?;
             // }
 
-            Short('e') | Long("pattern") => {
-                pattern = Some(parser.value()?.string()?);
+            Short('e') | Long("patterns") => {
+                patterns = parser.values()?.collect();
             }
 
             Value(val) if path.is_none() => {
                 path = Some(val.string()?);
             }
             Long("help") => {
-                println!("Usage: filestile --pattern PATTERN PATH");
+                debug!("Usage: filestile --patterns PATTERNS PATH");
                 std::process::exit(0);
             }
             _ => return Err(arg.unexpected()),
@@ -37,7 +41,11 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     }
 
     Ok(Args {
-        pattern: pattern.ok_or("missing argument --pattern")?,
+        patterns: if patterns.is_empty() {
+            return Err("missing option --patterns".into());
+        } else {
+            patterns
+        },
         path: path.ok_or("missing argument PATH")?,
     })
 }
@@ -46,8 +54,9 @@ fn main() -> Result<(), lexopt::Error> {
 
     let args = parse_args()?;
     let path = args.path;
-    // let pattern = args.pattern;
 
+    debug!("path: {}", path);
+    debug!("patterns: {:?}", args.patterns);
     match fs::read_dir(path) {
         Ok(dir) => {
             for entry in dir {
@@ -61,23 +70,23 @@ fn main() -> Result<(), lexopt::Error> {
 
                         if let Ok(modified_nsec) = modified_nsec {
                             let modified: DateTime<Utc> = DateTime::<Utc>::from(modified_nsec);
-                            println!("{}: modified @{}", entry.file_name().to_string_lossy(), modified);
+                            debug!("{}: modified @{}", entry.file_name().to_string_lossy(), modified);
                         }
 
                         if let Ok(created_nsec) = created_nsec {
                             let created: DateTime<Utc> = DateTime::<Utc>::from(created_nsec);
-                            println!("{}: created @{}", entry.file_name().to_string_lossy(), created);
+                            debug!("{}: created @{}", entry.file_name().to_string_lossy(), created);
                         }
 
-                        // println!("{}", entry.file_name().to_string_lossy());
-                        // println!("{:?}: {:?}", entry.path(), metadata.permissions());
-                        // println!("{}: {:?}", entry.file_name().to_string_lossy(), metadata.permissions());
+                        // debug!("{}", entry.file_name().to_string_lossy());
+                        // debug!("{:?}: {:?}", entry.path(), metadata.permissions());
+                        // debug!("{}: {:?}", entry.file_name().to_string_lossy(), metadata.permissions());
                     }
 
                  }
             }
         }
-        Err(err) => println!("Error reading directory: {}", err),
+        Err(err) => log_err!("Error reading directory: {}", err),
 
     }
        Ok(())
