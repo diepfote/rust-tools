@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::ffi::OsString;
 use std::fs;
 use std::sync::OnceLock;
@@ -60,9 +61,9 @@ fn main() -> Result<(), lexopt::Error> {
     let mut last_matches: HashMap<String, File> = HashMap::new();
 
     let args = parse_args()?;
-    let path = args.path;
+    let path_to_search = args.path;
 
-    debug!("path: {}", path);
+    debug!("path_to_search: {}", path_to_search);
     debug!("patterns: {:?}", args.patterns);
 
     static RE: OnceLock<Regex> = OnceLock::new();
@@ -76,7 +77,7 @@ fn main() -> Result<(), lexopt::Error> {
 
     println!("");
 
-    match fs::read_dir(path) {
+    match fs::read_dir(&path_to_search) {
         Ok(dir) => {
             for entry in dir {
                 if let Ok(entry) = entry {
@@ -86,10 +87,12 @@ fn main() -> Result<(), lexopt::Error> {
                             continue;
                         }
 
+                    debug!("--------------------------------");
+
                     let p = entry.path().to_string_lossy().to_string();
 
                     if re.is_match(&p) {
-                        log_info!("Matched: {}", p);
+                        debug!("Matched: {}", p);
                     } else {
                         // debug!("No match: {}\n---", p);
                         continue;
@@ -115,7 +118,6 @@ fn main() -> Result<(), lexopt::Error> {
                                 continue;
                             }
                         } else {
-                            let caps = re.captures(&p).unwrap();
                             debug!("None @{}: {}", p, shared_fname_section);
                         }
 
@@ -124,7 +126,6 @@ fn main() -> Result<(), lexopt::Error> {
                     }
 
 
-                    println!("---");
                     }
                  }
             }
@@ -133,6 +134,38 @@ fn main() -> Result<(), lexopt::Error> {
 
     }
 
-    log_info!("last_matches: {:?}", last_matches);
+    debug!("last_matches: {:?}", last_matches);
+
+    let keep: HashSet<String> = last_matches
+        .values()
+        .map(|file| file.name.clone())
+        .collect();
+
+    match fs::read_dir(path_to_search) {
+        Ok(dir) => {
+            for entry in dir {
+                if let Ok(entry) = entry {
+
+                    if let Ok(metadata) = entry.metadata() {
+                        if metadata.is_dir() {
+                            continue;
+                        }
+
+                    let p = entry.path().to_string_lossy().to_string();
+
+
+                    if !keep.contains(&p) {
+                        let _ = fs::remove_file(&p);
+                        log_info!("Deleted {}.", p);
+                        println!("---");
+                    }
+
+                    }
+                }
+            }
+        }
+        Err(err) => log_err!("Error reading directory: {}", err),
+    }
+
     Ok(())
 }
