@@ -1,10 +1,14 @@
-use std::fs;
+use std::collections::HashMap;
 use std::ffi::OsString;
+use std::fs;
+use std::sync::OnceLock;
+use std::time::SystemTime;
+
 use chrono::{DateTime, Utc};
 use regex::Regex;
-use std::sync::OnceLock;
 
 mod logging;
+
 
 struct Args {
     path: String,
@@ -45,15 +49,15 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     })
 }
 
-
-// [{name: timestamp}, {name: timestamp}]
+#[derive(Debug)]
 struct File {
     name: String,
-    timestamp: i64,
+    ts: SystemTime,
 }
 
-
 fn main() -> Result<(), lexopt::Error> {
+
+    let mut last_matches: HashMap<String, File> = HashMap::new();
 
     let args = parse_args()?;
     let path = args.path;
@@ -87,22 +91,38 @@ fn main() -> Result<(), lexopt::Error> {
                     if re.is_match(&p) {
                         log_info!("Matched: {}", p);
                     } else {
-                        debug!("No match: {}\n---", p);
+                        // debug!("No match: {}\n---", p);
                         continue;
                     }
 
-                    let modified_nsec = metadata.modified();
                     let created_nsec = metadata.created();
-
-                    if let Ok(modified_nsec) = modified_nsec {
-                        let _modified: DateTime<Utc> = DateTime::<Utc>::from(modified_nsec);
-                        debug!("{}: modified @{}", entry.file_name().to_string_lossy(), _modified);
-                    }
 
                     if let Ok(created_nsec) = created_nsec {
                         let _created: DateTime<Utc> = DateTime::<Utc>::from(created_nsec);
-                        debug!("{}: created @{}", entry.file_name().to_string_lossy(), _created);
+                        debug!("created @{}",  _created);
+
+                        let caps = re.captures(&p).unwrap();
+                        let shared_fname_section = caps.get(0).unwrap().as_str();
+
+                        if let Some(file) = last_matches.get(shared_fname_section) {
+                            debug!("File already saved.");
+                            if file.ts.clone() > created_nsec {
+                                log_info!("Current file older, continuing.");
+                                log_info!("Removing previous entry.");
+                                last_matches.retain(|key, _| re.is_match(key));
+                            } else {
+                                debug!("Current file newer, skipping.");
+                                continue;
+                            }
+                        } else {
+                            let caps = re.captures(&p).unwrap();
+                            debug!("None @{}: {}", p, shared_fname_section);
+                        }
+
+                        last_matches.insert(shared_fname_section.to_string(), File { name: p, ts: created_nsec } );
+
                     }
+
 
                     println!("---");
                     }
@@ -112,5 +132,7 @@ fn main() -> Result<(), lexopt::Error> {
         Err(err) => log_err!("Error reading directory: {}", err),
 
     }
-       Ok(())
+
+    log_info!("last_matches: {:?}", last_matches);
+    Ok(())
 }
