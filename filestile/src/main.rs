@@ -107,14 +107,16 @@ fn main() -> Result<(), lexopt::Error> {
                         let caps = re.captures(&p).unwrap();
                         let shared_fname_section = caps.get(0).unwrap().as_str();
 
+                        // Remember: we want to keep the oldest file
                         if let Some(file) = last_matches.get(shared_fname_section) {
                             debug!("File already saved.");
                             if file.ts.clone() > created_nsec {
-                                log_info!("Current file older, continuing.");
-                                log_info!("Removing previous entry.");
+                                log_info!("Removing previous entry: {}", file.name);
+                                log_info!("Current file older, continuing. Adding: {}", p);
+                                println!("---");
                                 last_matches.retain(|key, _| re.is_match(key));
                             } else {
-                                debug!("Current file newer, skipping.");
+                                debug!("Current file newer, skipping. Keeping: {}", file.name);
                                 continue;
                             }
                         } else {
@@ -141,6 +143,8 @@ fn main() -> Result<(), lexopt::Error> {
         .map(|file| file.name.clone())
         .collect();
 
+    println!("---");
+
     match fs::read_dir(path_to_search) {
         Ok(dir) => {
             for entry in dir {
@@ -157,7 +161,6 @@ fn main() -> Result<(), lexopt::Error> {
                     if !keep.contains(&p) {
                         let _ = fs::remove_file(&p);
                         log_info!("Deleted {}.", p);
-                        println!("---");
                     }
 
                     }
