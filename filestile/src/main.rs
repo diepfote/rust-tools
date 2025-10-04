@@ -14,7 +14,7 @@ mod logging;
 struct Args {
     path: String,
     patterns: Vec<OsString>,
-
+    match_group_indexes: Vec<i32>,
 }
 
 fn parse_args() -> Result<Args, lexopt::Error> {
@@ -22,6 +22,7 @@ fn parse_args() -> Result<Args, lexopt::Error> {
 
     let mut path = None;
     let mut patterns: Vec<OsString> = Vec::new();
+    let mut match_group_indexes: Vec<i32> = Vec::new();
     let mut parser = lexopt::Parser::from_env();
     while let Some(arg) = parser.next()? {
         match arg {
@@ -29,11 +30,19 @@ fn parse_args() -> Result<Args, lexopt::Error> {
                 patterns = parser.values()?.collect();
             }
 
+            Short('m') | Long("match-group-indexes") => {
+                match_group_indexes = parser.values()?
+                    .filter_map(|osstr| osstr.to_string_lossy().parse::<i32>().ok())
+                    .collect();
+            }
+
             Value(val) if path.is_none() => {
                 path = Some(val.string()?);
             }
-            Long("help") => {
-                debug!("Usage: filestile --patterns PATTERNS PATH");
+            Short('h') | Long("help") => {
+                println!("Usage: filestile --match-group-indexes --patterns PATTERNS -- PATH");
+                println!("Usage: filestile -m INDEXES -e PATTERNS -- PATH");
+                println!("e.g.: filestile -m 2 3 -e '.*(Blocksberg|Tina).*(Folge [0-9]+).*'  -- .");
                 std::process::exit(0);
             }
             _ => return Err(arg.unexpected()),
@@ -42,9 +51,14 @@ fn parse_args() -> Result<Args, lexopt::Error> {
 
     Ok(Args {
         patterns: if patterns.is_empty() {
-            return Err("missing option --patterns".into());
+            return Err("missing option -e/--patterns".into());
         } else {
             patterns
+        },
+        match_group_indexes: if match_group_indexes.is_empty() {
+            return Err("missing option -m/--match-group-indexes".into());
+        } else {
+            match_group_indexes
         },
         path: path.ok_or("missing argument PATH")?,
     })
@@ -62,6 +76,7 @@ fn main() -> Result<(), lexopt::Error> {
 
     let args = parse_args()?;
     let path_to_search = args.path;
+    let match_group_indexes = args.match_group_indexes;
 
     debug!("path_to_search: {}", path_to_search);
     debug!("patterns: {:?}", args.patterns);
@@ -108,18 +123,17 @@ fn main() -> Result<(), lexopt::Error> {
                         // that all patterns adhere to
                         debug!("caps: {:?}", caps);
 
-                        // @TODO use shared_fname_sections instead -> add param to specify which
-                        // capture groups to take, then join them with " "
-                        // This is hardcoded to work with this pattern
-                        // '(Blocksberg|Tina).*(Folge [0-9]+).*'
-                        let s1 = caps.get(2).unwrap().as_str();
-                        let s2 = caps.get(3).unwrap().as_str();
-                        let mut shared_fname_section = String::with_capacity(s1.len() + s2.len());
-                        shared_fname_section.push_str(s1);
-                        shared_fname_section.push_str(" ");
-                        shared_fname_section.push_str(s2);
-                        debug!("shared_fname_section: {}", shared_fname_section);
-                        // let shared_fname_section = (caps.get(1).unwrap() + caps.get(2).unwrap()).as_str();
+
+                        let groups = match_group_indexes.iter()
+                            .filter_map(|&idx| caps.get(idx.try_into().unwrap()).map(|match_group| match_group.as_str()))
+                            .collect::<Vec<&str>>();
+                        let shared_fname_section = groups.join(" ");
+                        // e.g. if a file is: /.../tmp.uaF4y1nMl0/Bibi & Tina -  Das sprechende Pferd (Folge 29) _ Hörspiel des Monats - DAS ZWEITPLATZIERTE....m4a
+
+                        //   and the pattern is: '.*(Blocksberg|Tina).*(Folge [0-9]+).*'
+                        // , then shared_fname_section is: Tina Folge 29
+
+                        log_info!("shared_fname_section: {}", shared_fname_section);
 
                         // Remember: we want to keep the oldest file
                         if let Some(file) = last_matches.get(&shared_fname_section) {
@@ -174,6 +188,7 @@ fn main() -> Result<(), lexopt::Error> {
 
 
                     if !keep.contains(&p) {
+                        // @TODO add dry-run
                         let _ = fs::remove_file(&p);
                         log_info!("Deleted {}.", p);
                     }
