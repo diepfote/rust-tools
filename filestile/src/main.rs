@@ -105,14 +105,29 @@ fn main() -> Result<(), lexopt::Error> {
                         debug!("created @{}",  _created);
 
                         let caps = re.captures(&p).unwrap();
-                        let shared_fname_section = caps.get(0).unwrap().as_str();
+                        // that all patterns adhere to
+                        debug!("caps: {:?}", caps);
+
+                        // @TODO use shared_fname_sections instead -> add param to specify which
+                        // capture groups to take, then join them with " "
+                        // This is hardcoded to work with this pattern
+                        // '(Blocksberg|Tina).*(Folge [0-9]+).*'
+                        let s1 = caps.get(2).unwrap().as_str();
+                        let s2 = caps.get(3).unwrap().as_str();
+                        let mut shared_fname_section = String::with_capacity(s1.len() + s2.len());
+                        shared_fname_section.push_str(s1);
+                        shared_fname_section.push_str(" ");
+                        shared_fname_section.push_str(s2);
+                        debug!("shared_fname_section: {}", shared_fname_section);
+                        // let shared_fname_section = (caps.get(1).unwrap() + caps.get(2).unwrap()).as_str();
 
                         // Remember: we want to keep the oldest file
-                        if let Some(file) = last_matches.get(shared_fname_section) {
+                        if let Some(file) = last_matches.get(&shared_fname_section) {
                             debug!("File already saved.");
                             if file.ts.clone() > created_nsec {
+                                log_info!("Current file older, continuing.");
                                 log_info!("Removing previous entry: {}", file.name);
-                                log_info!("Current file older, continuing. Adding: {}", p);
+                                log_info!("Adding: {}", p);
                                 println!("---");
                                 last_matches.retain(|key, _| re.is_match(key));
                             } else {
