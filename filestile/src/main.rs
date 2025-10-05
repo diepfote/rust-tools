@@ -10,7 +10,6 @@ use regex::Regex;
 
 mod logging;
 
-
 struct Args {
     path: String,
     patterns: Vec<OsString>,
@@ -31,7 +30,8 @@ fn parse_args() -> Result<Args, lexopt::Error> {
             }
 
             Short('m') | Long("match-group-indexes") => {
-                match_group_indexes = parser.values()?
+                match_group_indexes = parser
+                    .values()?
                     .filter_map(|osstr| osstr.to_string_lossy().parse::<i32>().ok())
                     .collect();
             }
@@ -71,7 +71,6 @@ struct File {
 }
 
 fn main() -> Result<(), lexopt::Error> {
-
     let mut last_matches: HashMap<String, File> = HashMap::new();
 
     let args = parse_args()?;
@@ -82,7 +81,8 @@ fn main() -> Result<(), lexopt::Error> {
     debug!("patterns: {:?}", args.patterns);
 
     static RE: OnceLock<Regex> = OnceLock::new();
-    let patterns = args.patterns
+    let patterns = args
+        .patterns
         .iter()
         .map(|os| "(".to_owned() + &os.to_string_lossy() + ")")
         .collect::<Vec<_>>()
@@ -96,73 +96,77 @@ fn main() -> Result<(), lexopt::Error> {
         Ok(dir) => {
             for entry in dir {
                 if let Ok(entry) = entry {
-
                     if let Ok(metadata) = entry.metadata() {
                         if metadata.is_dir() {
                             continue;
                         }
 
-                    debug!("--------------------------------");
+                        debug!("--------------------------------");
 
-                    let p = entry.path().to_string_lossy().to_string();
+                        let p = entry.path().to_string_lossy().to_string();
 
-                    if re.is_match(&p) {
-                        debug!("Matched: {}", p);
-                    } else {
-                        // debug!("No match: {}\n---", p);
-                        continue;
-                    }
-
-                    let created_nsec = metadata.created();
-
-                    if let Ok(created_nsec) = created_nsec {
-                        let _created: DateTime<Utc> = DateTime::<Utc>::from(created_nsec);
-                        debug!("created @{}",  _created);
-
-                        let caps = re.captures(&p).unwrap();
-                        // that all patterns adhere to
-                        debug!("caps: {:?}", caps);
-
-
-                        let groups = match_group_indexes.iter()
-                            .filter_map(|&idx| caps.get(idx.try_into().unwrap()).map(|match_group| match_group.as_str()))
-                            .collect::<Vec<&str>>();
-                        let shared_fname_section = groups.join(" ");
-                        // e.g. if a file is: /.../tmp.uaF4y1nMl0/Bibi & Tina -  Das sprechende Pferd (Folge 29) _ Hörspiel des Monats - DAS ZWEITPLATZIERTE....m4a
-
-                        //   and the pattern is: '.*(Blocksberg|Tina).*(Folge [0-9]+).*'
-                        // , then shared_fname_section is: Tina Folge 29
-
-                        log_info!("shared_fname_section: {}", shared_fname_section);
-
-                        // Remember: we want to keep the oldest file
-                        if let Some(file) = last_matches.get(&shared_fname_section) {
-                            debug!("File already saved.");
-                            if file.ts.clone() > created_nsec {
-                                log_info!("Current file older, continuing.");
-                                log_info!("Removing previous entry: {}", file.name);
-                                log_info!("Adding: {}", p);
-                                println!("---");
-                                last_matches.retain(|key, _| re.is_match(key));
-                            } else {
-                                debug!("Current file newer, skipping. Keeping: {}", file.name);
-                                continue;
-                            }
+                        if re.is_match(&p) {
+                            debug!("Matched: {}", p);
                         } else {
-                            debug!("None @{}: {}", p, shared_fname_section);
+                            // debug!("No match: {}\n---", p);
+                            continue;
                         }
 
-                        last_matches.insert(shared_fname_section.to_string(), File { name: p, ts: created_nsec } );
+                        let created_nsec = metadata.created();
 
+                        if let Ok(created_nsec) = created_nsec {
+                            let _created: DateTime<Utc> = DateTime::<Utc>::from(created_nsec);
+                            debug!("created @{}", _created);
+
+                            let caps = re.captures(&p).unwrap();
+                            // that all patterns adhere to
+                            debug!("caps: {:?}", caps);
+
+                            let groups = match_group_indexes
+                                .iter()
+                                .filter_map(|&idx| {
+                                    caps.get(idx.try_into().unwrap())
+                                        .map(|match_group| match_group.as_str())
+                                })
+                                .collect::<Vec<&str>>();
+                            let shared_fname_section = groups.join(" ");
+                            // e.g. if a file is: /.../tmp.uaF4y1nMl0/Bibi & Tina -  Das sprechende Pferd (Folge 29) _ Hörspiel des Monats - DAS ZWEITPLATZIERTE....m4a
+
+                            //   and the pattern is: '.*(Blocksberg|Tina).*(Folge [0-9]+).*'
+                            // , then shared_fname_section is: Tina Folge 29
+
+                            log_info!("shared_fname_section: {}", shared_fname_section);
+
+                            // Remember: we want to keep the oldest file
+                            if let Some(file) = last_matches.get(&shared_fname_section) {
+                                debug!("File already saved.");
+                                if file.ts.clone() > created_nsec {
+                                    log_info!("Current file older, continuing.");
+                                    log_info!("Removing previous entry: {}", file.name);
+                                    log_info!("Adding: {}", p);
+                                    println!("---");
+                                    last_matches.retain(|key, _| re.is_match(key));
+                                } else {
+                                    debug!("Current file newer, skipping. Keeping: {}", file.name);
+                                    continue;
+                                }
+                            } else {
+                                debug!("None @{}: {}", p, shared_fname_section);
+                            }
+
+                            last_matches.insert(
+                                shared_fname_section.to_string(),
+                                File {
+                                    name: p,
+                                    ts: created_nsec,
+                                },
+                            );
+                        }
                     }
-
-
-                    }
-                 }
+                }
             }
         }
         Err(err) => log_err!("Error reading directory: {}", err),
-
     }
 
     debug!("last_matches: {:?}", last_matches);
@@ -178,21 +182,18 @@ fn main() -> Result<(), lexopt::Error> {
         Ok(dir) => {
             for entry in dir {
                 if let Ok(entry) = entry {
-
                     if let Ok(metadata) = entry.metadata() {
                         if metadata.is_dir() {
                             continue;
                         }
 
-                    let p = entry.path().to_string_lossy().to_string();
+                        let p = entry.path().to_string_lossy().to_string();
 
-
-                    if !keep.contains(&p) {
-                        // @TODO add dry-run
-                        let _ = fs::remove_file(&p);
-                        log_info!("Deleted {}.", p);
-                    }
-
+                        if !keep.contains(&p) {
+                            // @TODO add dry-run
+                            let _ = fs::remove_file(&p);
+                            log_info!("Deleted {}.", p);
+                        }
                     }
                 }
             }

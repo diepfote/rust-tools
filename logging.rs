@@ -11,8 +11,7 @@ macro_rules! debug {
 #[cfg(not(debug))]
 #[macro_export]
 macro_rules! debug {
-    ($($args: tt)*) => {
-    }
+    ($($args: tt)*) => {};
 }
 #[macro_export]
 macro_rules! log_info {

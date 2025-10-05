@@ -14,10 +14,9 @@ fn refresh_tmux() {
         .arg("refresh-client")
         .spawn()
         .map_err(|e| {
-    debug!("Failed to execute `tmux refresh-client`: {}", e);
-});
+            debug!("Failed to execute `tmux refresh-client`: {}", e);
+        });
 }
-
 
 fn update_tmux_display(os_cloud: &str, kubecfg: &str) {
     write_file("/tmp/._kubeconfig", kubecfg);
@@ -26,8 +25,15 @@ fn update_tmux_display(os_cloud: &str, kubecfg: &str) {
     refresh_tmux();
 }
 
-fn print_shortened_path(path: &str, home: &str, color: &str, not_host_env_color: &str, no_color: &str, in_container: bool) {
-    let mut prefix : String = "".to_string();
+fn print_shortened_path(
+    path: &str,
+    home: &str,
+    color: &str,
+    not_host_env_color: &str,
+    no_color: &str,
+    in_container: bool,
+) {
+    let mut prefix: String = "".to_string();
     if in_container {
         prefix += not_host_env_color;
         prefix += "NOT_HOST_ENV: ";
@@ -42,8 +48,7 @@ fn print_shortened_path(path: &str, home: &str, color: &str, not_host_env_color:
 
         if path.len() == home.len() {
             tokens.clear();
-        }
-        else {
+        } else {
             if tokens.len() > 3 {
                 tokens.drain(0..3);
             }
@@ -62,7 +67,7 @@ fn print_shortened_path(path: &str, home: &str, color: &str, not_host_env_color:
         tokens_idx += 1;
         debug!("token: {}, tokens_idx: {}", t, tokens_idx);
 
-        if tokens_idx == (tokens_len - 2) || tokens_idx == (tokens_len - 3)  {
+        if tokens_idx == (tokens_len - 2) || tokens_idx == (tokens_len - 3) {
             continue;
         }
         if tokens_idx == (tokens_len - 1) {
@@ -84,9 +89,18 @@ fn print_shortened_path(path: &str, home: &str, color: &str, not_host_env_color:
 }
 
 fn main() {
-    let env_keys = ["HOME", "PWD", "NOT_HOST_ENV",
-                    "OS_CLOUD", "KUBECONFIG", "GREEN",
-                    "BLUE", "RED", "NC", "VIRTUAL_ENV"];
+    let env_keys = [
+        "HOME",
+        "PWD",
+        "NOT_HOST_ENV",
+        "OS_CLOUD",
+        "KUBECONFIG",
+        "GREEN",
+        "BLUE",
+        "RED",
+        "NC",
+        "VIRTUAL_ENV",
+    ];
     let env = read_env_variables(&env_keys);
     let pwd = env["PWD"].as_str();
     let venv = env["VIRTUAL_ENV"].as_str();
@@ -99,7 +113,7 @@ fn main() {
     debug!("venv: {}", venv);
 
     let not_host_env = env["NOT_HOST_ENV"].as_str();
-    let in_container = if not_host_env.len() == 0 { false } else  { true };
+    let in_container = if not_host_env.len() == 0 { false } else { true };
 
     print_shortened_path(pwd, home, green, red, no_color, in_container);
     if venv.len() > 0 {
@@ -109,8 +123,5 @@ fn main() {
     }
     println!("\n$ ");
 
-
     update_tmux_display(env["OS_CLOUD"].as_str(), env["KUBECONFIG"].as_str());
-
 }
-
