@@ -26,7 +26,7 @@ filestile --dry-run -m 2 3 -e '.*(Blocksberg|Tina).*(Folge [0-9]+).*'  -- "$temp
 
 If a file is named
 `Bibi & Tina -  Das sprechende Pferd (Folge 29) _ Hörspiel des Monats - DAS ZWEITPLATZIERTE....m4a`
-the the pattern we should use is `.*(Blocksberg|Tina).*(Folge [0-9]+).*`.
+the pattern we should use is `.*(Blocksberg|Tina).*(Folge [0-9]+).*`.
 Match group indexes should be `2 3`
 and the shared_filename will end up being 'Tina Folge 29'
 
