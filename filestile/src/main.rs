@@ -92,83 +92,76 @@ fn main() -> Result<(), lexopt::Error> {
 
     println!("");
 
-    match fs::read_dir(&path_to_search) {
-        Ok(dir) => {
-            for entry in dir {
-                if let Ok(entry) = entry {
-                    if let Ok(metadata) = entry.metadata() {
-                        if metadata.is_dir() {
-                            continue;
-                        }
-
-                        debug!("--------------------------------");
-
-                        let p = entry.path().to_string_lossy().to_string();
-
-                        if re.is_match(&p) {
-                            debug!("Matched: {}", p);
-                        } else {
-                            // debug!("No match: {}\n---", p);
-                            continue;
-                        }
-
-                        let created_nsec = metadata.created();
-
-                        if let Ok(created_nsec) = created_nsec {
-                            let _created: DateTime<Utc> = DateTime::<Utc>::from(created_nsec);
-                            debug!("created @{}", _created);
-
-                            let caps = re.captures(&p).unwrap();
-                            // that all patterns adhere to
-                            debug!("caps: {:?}", caps);
-
-                            let groups = match_group_indexes
-                                .iter()
-                                .filter_map(|&idx| {
-                                    caps.get(idx.try_into().unwrap())
-                                        .map(|match_group| match_group.as_str())
-                                })
-                                .collect::<Vec<&str>>();
-                            let shared_fname_section = groups.join(" ");
-                            // e.g. if a file is: /.../tmp.uaF4y1nMl0/Bibi & Tina -  Das sprechende Pferd (Folge 29) _ Hörspiel des Monats - DAS ZWEITPLATZIERTE....m4a
-
-                            //   and the pattern is: '.*(Blocksberg|Tina).*(Folge [0-9]+).*'
-                            // , then shared_fname_section is: Tina Folge 29
-
-                            log_info!("shared_fname_section: {}", shared_fname_section);
-
-                            // Remember: we want to keep the oldest file
-                            if let Some(file) = last_matches.get(&shared_fname_section) {
-                                debug!("File already saved.");
-                                if file.ts.clone() > created_nsec {
-                                    log_info!("Current file older, continuing.");
-                                    log_info!("Removing previous entry: {}", file.name);
-                                    log_info!("Adding: {}", p);
-                                    println!("---");
-                                    last_matches.retain(|key, _| re.is_match(key));
-                                } else {
-                                    debug!("Current file newer, skipping. Keeping: {}", file.name);
-                                    continue;
-                                }
-                            } else {
-                                debug!("None @{}: {}", p, shared_fname_section);
-                            }
-
-                            last_matches.insert(
-                                shared_fname_section.to_string(),
-                                File {
-                                    name: p,
-                                    ts: created_nsec,
-                                },
-                            );
-                        }
-                    }
+    if let Ok(dir) = fs::read_dir(&path_to_search) {
+        for entry in dir {
+            if let Ok(entry) = entry
+                && let Ok(metadata) = entry.metadata()
+                && let Ok(created_nsec) = metadata.created()
+            {
+                if metadata.is_dir() {
+                    continue;
                 }
+
+                debug!("--------------------------------");
+
+                let p = entry.path().to_string_lossy().to_string();
+
+                if re.is_match(&p) {
+                    debug!("Matched: {}", p);
+                } else {
+                    // debug!("No match: {}\n---", p);
+                    continue;
+                }
+
+                let _created: DateTime<Utc> = DateTime::<Utc>::from(created_nsec);
+                debug!("created @{}", _created);
+
+                let caps = re.captures(&p).unwrap();
+                // that all patterns adhere to
+                debug!("caps: {:?}", caps);
+
+                let groups = match_group_indexes
+                    .iter()
+                    .filter_map(|&idx| {
+                        caps.get(idx.try_into().unwrap())
+                            .map(|match_group| match_group.as_str())
+                    })
+                    .collect::<Vec<&str>>();
+                let shared_fname_section = groups.join(" ");
+                // e.g. if a file is: /.../tmp.uaF4y1nMl0/Bibi & Tina -  Das sprechende Pferd (Folge 29) _ Hörspiel des Monats - DAS ZWEITPLATZIERTE....m4a
+
+                //   and the pattern is: '.*(Blocksberg|Tina).*(Folge [0-9]+).*'
+                // , then shared_fname_section is: Tina Folge 29
+
+                log_info!("shared_fname_section: {}", shared_fname_section);
+
+                // Remember: we want to keep the oldest file
+                if let Some(file) = last_matches.get(&shared_fname_section) {
+                    debug!("File already saved.");
+                    if file.ts.clone() > created_nsec {
+                        log_info!("Current file older, continuing.");
+                        log_info!("Removing previous entry: {}", file.name);
+                        log_info!("Adding: {}", p);
+                        println!("---");
+                        last_matches.retain(|key, _| re.is_match(key));
+                    } else {
+                        debug!("Current file newer, skipping. Keeping: {}", file.name);
+                        continue;
+                    }
+                } else {
+                    debug!("None @{}: {}", p, shared_fname_section);
+                }
+
+                last_matches.insert(
+                    shared_fname_section.to_string(),
+                    File {
+                        name: p,
+                        ts: created_nsec,
+                    },
+                );
             }
         }
-        Err(err) => log_err!("Error reading directory: {}", err),
     }
-
     debug!("last_matches: {:?}", last_matches);
 
     let keep: HashSet<String> = last_matches

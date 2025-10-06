@@ -13,11 +13,15 @@ run:
 run-debug:
 	../run.sh target/debug
 
+.PHONY: fmt
+fmt:
+	cargo fmt
+
 .PHONY: build
-build:
+build: fmt
 	cargo build --future-incompat-report --release
 .PHONY: build-debug
-build-debug:
+build-debug: fmt
 	RUSTFLAGS="--cfg debug" cargo build --future-incompat-report
 
 .PHONY: build-cross-x86_64
