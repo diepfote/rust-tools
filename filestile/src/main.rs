@@ -64,6 +64,42 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     })
 }
 
+// Extract match groups from captures and join them using " "
+//
+// e.g. if a file is:
+//  /.../tmp.uaF4y1nMl0/Bibi & Tina -  Das sprechende Pferd (Folge 29) _ Hörspiel des Monats - DAS ZWEITPLATZIERTE....m4a
+//  , then the pattern we should use is: '.*(Blocksberg|Tina).*(Folge [0-9]+).*'
+//  and shared_fname ends up being: Tina Folge 29
+fn get_shared_fname(path: &String, match_group_indexes: Vec<i32>, regexp: Regex) -> String {
+    let re_captures = regexp.captures(path).unwrap();
+    debug!("re_captures: {:?}", re_captures);
+
+    let groups = match_group_indexes
+        .iter()
+        .filter_map(|&idx| {
+            re_captures
+                .get(idx.try_into().unwrap())
+                .map(|match_group| match_group.as_str())
+        })
+        .collect::<Vec<&str>>();
+    return groups.join(" ");
+}
+
+// Combine all patterns into a single regex
+// map + join ...  split them by "|" and wrap them in "()"
+//
+fn get_regex_pattern(patterns: Vec<OsString>) -> Regex {
+    debug!("patterns: {:?}", patterns);
+
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re_patterns = patterns
+        .iter()
+        .map(|os| "(".to_owned() + &os.to_string_lossy() + ")")
+        .collect::<Vec<_>>()
+        .join("|");
+    return RE.get_or_init(|| Regex::new(&re_patterns).unwrap()).clone();
+}
+
 #[derive(Debug)]
 struct File {
     name: String,
@@ -76,19 +112,11 @@ fn main() -> Result<(), lexopt::Error> {
     let args = parse_args()?;
     let path_to_search = args.path;
     let match_group_indexes = args.match_group_indexes;
+    let patterns = args.patterns;
 
     debug!("path_to_search: {}", path_to_search);
-    debug!("patterns: {:?}", args.patterns);
 
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let patterns = args
-        .patterns
-        .iter()
-        .map(|os| "(".to_owned() + &os.to_string_lossy() + ")")
-        .collect::<Vec<_>>()
-        .join("|");
-    let re = RE.get_or_init(|| Regex::new(&patterns).unwrap());
-    debug!("re: {:?}", re);
+    let regexp = get_regex_pattern(patterns);
 
     println!("");
 
@@ -104,58 +132,43 @@ fn main() -> Result<(), lexopt::Error> {
 
                 debug!("--------------------------------");
 
-                let p = entry.path().to_string_lossy().to_string();
+                let path = entry.path().to_string_lossy().to_string();
 
-                if re.is_match(&p) {
-                    debug!("Matched: {}", p);
+                if regexp.is_match(&path) {
+                    debug!("Matched: {}", path);
                 } else {
-                    // debug!("No match: {}\n---", p);
+                    // debug!("No match: {}\n---", path);
                     continue;
                 }
 
                 let _created: DateTime<Utc> = DateTime::<Utc>::from(created_nsec);
                 debug!("created @{}", _created);
 
-                let caps = re.captures(&p).unwrap();
-                // that all patterns adhere to
-                debug!("caps: {:?}", caps);
-
-                let groups = match_group_indexes
-                    .iter()
-                    .filter_map(|&idx| {
-                        caps.get(idx.try_into().unwrap())
-                            .map(|match_group| match_group.as_str())
-                    })
-                    .collect::<Vec<&str>>();
-                let shared_fname_section = groups.join(" ");
-                // e.g. if a file is: /.../tmp.uaF4y1nMl0/Bibi & Tina -  Das sprechende Pferd (Folge 29) _ Hörspiel des Monats - DAS ZWEITPLATZIERTE....m4a
-
-                //   and the pattern is: '.*(Blocksberg|Tina).*(Folge [0-9]+).*'
-                // , then shared_fname_section is: Tina Folge 29
-
-                log_info!("shared_fname_section: {}", shared_fname_section);
+                let shared_fname =
+                    get_shared_fname(&path, match_group_indexes.clone(), regexp.clone());
+                log_info!("shared_fname: {}", shared_fname);
 
                 // Remember: we want to keep the oldest file
-                if let Some(file) = last_matches.get(&shared_fname_section) {
+                if let Some(file) = last_matches.get(&shared_fname) {
                     debug!("File already saved.");
                     if file.ts.clone() > created_nsec {
                         log_info!("Current file older, continuing.");
                         log_info!("Removing previous entry: {}", file.name);
-                        log_info!("Adding: {}", p);
+                        log_info!("Adding: {}", path);
                         println!("---");
-                        last_matches.retain(|key, _| re.is_match(key));
+                        last_matches.retain(|key, _| regexp.is_match(key));
                     } else {
                         debug!("Current file newer, skipping. Keeping: {}", file.name);
                         continue;
                     }
                 } else {
-                    debug!("None @{}: {}", p, shared_fname_section);
+                    debug!("Not saved yet: {}: shared_fname: {}", path, shared_fname);
                 }
 
                 last_matches.insert(
-                    shared_fname_section.to_string(),
+                    shared_fname.to_string(),
                     File {
-                        name: p,
+                        name: path,
                         ts: created_nsec,
                     },
                 );
@@ -171,27 +184,23 @@ fn main() -> Result<(), lexopt::Error> {
 
     println!("---");
 
-    match fs::read_dir(path_to_search) {
-        Ok(dir) => {
-            for entry in dir {
-                if let Ok(entry) = entry {
-                    if let Ok(metadata) = entry.metadata() {
-                        if metadata.is_dir() {
-                            continue;
-                        }
+    if let Ok(dir) = fs::read_dir(&path_to_search) {
+        for entry in dir {
+            if let Ok(entry) = entry
+                && let Ok(metadata) = entry.metadata()
+                && !metadata.is_dir()
+            {
+                {
+                    let path = entry.path().to_string_lossy().to_string();
 
-                        let p = entry.path().to_string_lossy().to_string();
-
-                        if !keep.contains(&p) {
-                            // @TODO add dry-run
-                            let _ = fs::remove_file(&p);
-                            log_info!("Deleted {}.", p);
-                        }
+                    if !keep.contains(&path) {
+                        // @TODO add dry-run
+                        let _ = fs::remove_file(&path);
+                        log_info!("Deleted {}.", path);
                     }
                 }
             }
         }
-        Err(err) => log_err!("Error reading directory: {}", err),
     }
 
     Ok(())
