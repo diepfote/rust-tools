@@ -3,6 +3,9 @@
 Just keep one file of many that match a condition
 (and yes, this is a pun on turnstile and file).
 
+Here is a picture of a stile from <https://www.geograph.org.uk/photo/7669435>:
+![](./.images/7669435_28e15cd4_1024x1024-2241378507.jpg)
+
 The tool looks for matching files based on a shared filename.
 You specify that shared filename with a regex pattern and match groups.
 
