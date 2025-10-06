@@ -11,6 +11,7 @@ use regex::Regex;
 mod logging;
 
 struct Args {
+    dry_run: bool,
     path: String,
     patterns: Vec<OsString>,
     match_group_indexes: Vec<i32>,
@@ -19,12 +20,18 @@ struct Args {
 fn parse_args() -> Result<Args, lexopt::Error> {
     use lexopt::prelude::*;
 
+    let mut dry_run = false;
     let mut path = None;
     let mut patterns: Vec<OsString> = Vec::new();
     let mut match_group_indexes: Vec<i32> = Vec::new();
+
     let mut parser = lexopt::Parser::from_env();
     while let Some(arg) = parser.next()? {
         match arg {
+            Long("dry-run") => {
+                dry_run = true;
+            }
+
             Short('e') | Long("patterns") => {
                 patterns = parser.values()?.collect();
             }
@@ -50,6 +57,7 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     }
 
     Ok(Args {
+        dry_run: dry_run,
         patterns: if patterns.is_empty() {
             return Err("missing option -e/--patterns".into());
         } else {
@@ -194,9 +202,12 @@ fn main() -> Result<(), lexopt::Error> {
                     let path = entry.path().to_string_lossy().to_string();
 
                     if !keep.contains(&path) {
-                        // @TODO add dry-run
-                        let _ = fs::remove_file(&path);
-                        log_info!("Deleted {}.", path);
+                        if args.dry_run {
+                            log_info!("Would delete: {}.", path);
+                        } else {
+                            let _ = fs::remove_file(&path);
+                            log_info!("Deleted: {}.", path);
+                        }
                     }
                 }
             }
