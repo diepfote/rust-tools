@@ -3,17 +3,27 @@
 Just keep one file of many that match a condition
 (and yes, this is a pun on turnstile and file).
 
-The tool looks for matching files based on their filename.  
-You provide a string such as "Folge 85" or "Episode 85".
-It will then run `stat` for each of the files that match
-and delete all but the oldest file.
+The tool looks for matching files based on a shared filename.
+You specify that shared filename with a regex pattern and match groups.
 
-In the end it should also be able to handle not just strings
-but regexes. "Folge [0-9]+" just be valid and result in the
-following behavior:
 
-* a list of all matching files is generated
-* we print this list
-* we sort them into files that are "identical" (if we have files that contain "Folge 85" and "Folge 86" we want to sort them into 2 buckets)
-* we remove all but the oldest version of each of these files
+## What it does
+
+1) It will loop through all files in a given directory (non-recursive)
+2) if there is a regex match it will keep track of this file and note down its created_date
+3) if it encounters another match for this file it will update the entry if the file is older
+4) it will then re-loop through all files and remove any file it did not previously keep track of
+
+
+# Usage
+
+```text
+filestile --dry-run -m 2 3 -e '.*(Blocksberg|Tina).*(Folge [0-9]+).*'  -- "$temp"
+```
+
+If a file is named
+`Bibi & Tina -  Das sprechende Pferd (Folge 29) _ Hörspiel des Monats - DAS ZWEITPLATZIERTE....m4a`
+the the pattern we should use is `.*(Blocksberg|Tina).*(Folge [0-9]+).*`.
+Match group indexes should be `2 3`
+and the shared_filename will end up being 'Tina Folge 29'
 

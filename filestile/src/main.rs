@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::ffi::OsString;
 use std::fs;
 use std::sync::OnceLock;
 use std::time::SystemTime;
@@ -13,7 +12,7 @@ mod logging;
 struct Args {
     dry_run: bool,
     path: String,
-    patterns: Vec<OsString>,
+    pattern: String,
     match_group_indexes: Vec<i32>,
 }
 
@@ -22,7 +21,7 @@ fn parse_args() -> Result<Args, lexopt::Error> {
 
     let mut dry_run = false;
     let mut path = None;
-    let mut patterns: Vec<OsString> = Vec::new();
+    let mut pattern: String = "".to_string();
     let mut match_group_indexes: Vec<i32> = Vec::new();
 
     let mut parser = lexopt::Parser::from_env();
@@ -32,8 +31,11 @@ fn parse_args() -> Result<Args, lexopt::Error> {
                 dry_run = true;
             }
 
-            Short('e') | Long("patterns") => {
-                patterns = parser.values()?.collect();
+            Short('e') | Long("pattern") => {
+                if let Ok(value) = parser.value() {
+                    let value_str = value.to_string_lossy();
+                    pattern = value_str.to_string();
+                }
             }
 
             Short('m') | Long("match-group-indexes") => {
@@ -46,9 +48,12 @@ fn parse_args() -> Result<Args, lexopt::Error> {
             Value(val) if path.is_none() => {
                 path = Some(val.string()?);
             }
+
             Short('h') | Long("help") => {
-                println!("Usage: filestile --match-group-indexes --patterns PATTERNS -- PATH");
-                println!("Usage: filestile -m INDEXES -e PATTERNS -- PATH");
+                println!(
+                    "Usage: filestile --match-group-indexes INDEXES --pattern PATTERN -- PATH"
+                );
+                println!("Usage: filestile -m INDEXES -e PATTERN -- PATH");
                 println!("e.g.: filestile -m 2 3 -e '.*(Blocksberg|Tina).*(Folge [0-9]+).*'  -- .");
                 std::process::exit(0);
             }
@@ -58,10 +63,10 @@ fn parse_args() -> Result<Args, lexopt::Error> {
 
     Ok(Args {
         dry_run: dry_run,
-        patterns: if patterns.is_empty() {
-            return Err("missing option -e/--patterns".into());
+        pattern: if pattern.is_empty() {
+            return Err("missing option -e/--pattern".into());
         } else {
-            patterns
+            pattern
         },
         match_group_indexes: if match_group_indexes.is_empty() {
             return Err("missing option -m/--match-group-indexes".into());
@@ -93,19 +98,11 @@ fn get_shared_fname(path: &String, match_group_indexes: Vec<i32>, regexp: Regex)
     return groups.join(" ");
 }
 
-// Combine all patterns into a single regex
-// map + join ...  split them by "|" and wrap them in "()"
-//
-fn get_regex_pattern(patterns: Vec<OsString>) -> Regex {
-    debug!("patterns: {:?}", patterns);
+fn get_regex_pattern(pattern: String) -> Regex {
+    debug!("pattern: {}", pattern);
 
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re_patterns = patterns
-        .iter()
-        .map(|os| "(".to_owned() + &os.to_string_lossy() + ")")
-        .collect::<Vec<_>>()
-        .join("|");
-    return RE.get_or_init(|| Regex::new(&re_patterns).unwrap()).clone();
+    return RE.get_or_init(|| Regex::new(&pattern).unwrap()).clone();
 }
 
 #[derive(Debug)]
@@ -120,11 +117,11 @@ fn main() -> Result<(), lexopt::Error> {
     let args = parse_args()?;
     let path_to_search = args.path;
     let match_group_indexes = args.match_group_indexes;
-    let patterns = args.patterns;
+    let pattern = args.pattern;
 
     debug!("path_to_search: {}", path_to_search);
 
-    let regexp = get_regex_pattern(patterns);
+    let regexp = get_regex_pattern(pattern);
 
     println!("");
 
