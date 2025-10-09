@@ -54,7 +54,7 @@ fn parse_args() -> Result<Args, lexopt::Error> {
                     "Usage: filestile --match-group-indexes INDEXES --pattern PATTERN -- PATH"
                 );
                 println!("Usage: filestile -m INDEXES -e PATTERN -- PATH");
-                println!("e.g.: filestile -m 2 3 -e '.*(Blocksberg|Tina).*(Folge [0-9]+).*'  -- .");
+                println!("e.g.: filestile -m 1 2 -e '.*(Blocksberg|Tina).*(Folge [0-9]+).*'  -- .");
                 std::process::exit(0);
             }
             _ => return Err(arg.unexpected()),

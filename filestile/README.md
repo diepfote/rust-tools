@@ -21,7 +21,7 @@ You specify that shared filename with a regex pattern and match groups.
 # Usage
 
 ```text
-filestile --dry-run -m 2 3 -e '.*(Blocksberg|Tina).*(Folge [0-9]+).*'  -- "$temp"
+filestile --dry-run -m 1 2 -e '.*(Blocksberg|Tina).*(Folge [0-9]+).*'  -- "$temp"
 ```
 
 If a file is named
