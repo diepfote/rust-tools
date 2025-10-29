@@ -1,10 +1,7 @@
+use std::fs;
 use std::process::Command;
 
 mod logging;
-
-mod file_io;
-pub use file_io::read_file;
-pub use file_io::write_file;
 
 mod environment;
 pub use environment::read_env_variables;
@@ -19,8 +16,8 @@ fn refresh_tmux() {
 }
 
 fn update_tmux_display(os_cloud: &str, kubecfg: &str) {
-    write_file("/tmp/._kubeconfig", kubecfg);
-    write_file("/tmp/._openstack_cloud", os_cloud);
+    fs::write("/tmp/._kubeconfig", kubecfg).unwrap();
+    fs::write("/tmp/._openstack_cloud", os_cloud).unwrap();
 
     refresh_tmux();
 }
