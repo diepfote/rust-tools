@@ -1,0 +1,7 @@
+[package]
+name = "read-ini-setting"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rust-ini = "0.21"
