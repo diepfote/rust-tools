@@ -42,7 +42,7 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     let mut use_color = true;
     let mut in_repos = true;
     let mut timeout: Option<Duration> = None;
-    let mut config_filename: String = "".to_string();
+    let mut config_filename: String = "repo.conf".to_string();
     let mut command: Vec<String> = Vec::new();
 
     let mut parser = lexopt::Parser::from_env();
@@ -78,15 +78,12 @@ fn parse_args() -> Result<Args, lexopt::Error> {
         }
     }
 
+    log_info!("config file: {:}", config_filename);
     Ok(Args {
         show_header: show_header,
         use_color: use_color,
         in_repos: in_repos,
-        config_filename: if config_filename.len() < 1 {
-            return Err("missing --config option".into());
-        } else {
-            config_filename
-        },
+        config_filename,
         timeout: timeout,
         command: if command.is_empty() {
             return Err("missing command/args".into());
