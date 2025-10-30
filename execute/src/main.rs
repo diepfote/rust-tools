@@ -19,15 +19,12 @@ mod logging;
 mod environment;
 pub use environment::read_env_variables;
 
-
-
 // @TODO print Stderr on non-zero exit, maybe we just go the log_err route
 //       but it would be nicer to actually return an error and print it
 //
 // @TODO can we poll_once for both stderr and stdout after waiting for the task?
 //
 // @TODO cleanup
-
 
 struct Args {
     show_header: bool,
@@ -210,9 +207,11 @@ fn get_files(config_filename: String, home: String) -> Vec<String> {
     let mut files: Vec<String> = Vec::new();
 
     let mut config_path = PathBuf::from(config_filename.as_str());
-
     if !config_path.is_absolute() {
-        config_path = PathBuf::from(home + "/" + config_filename.as_str());
+        debug!("config_path: {:?} is not absolute.", config_path);
+        config_path =
+            PathBuf::from(format!("{}/{}/{}", home, ".config/personal", config_filename).as_str());
+        debug!("updated config_path: {:?}", config_path);
     }
 
     let config = fs::read_to_string(config_path);
