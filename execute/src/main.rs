@@ -120,9 +120,56 @@ async fn run_command(
 ) -> Result<(String, String), String> {
     let mut args = arguments.clone();
 
-    if cmd == "git" && use_color {
-        args.insert(0, "-c".to_string());
-        args.insert(1, "color.status=always".to_string());
+    let mut idx: usize = 0;
+    if use_color {
+        if cmd == "git" {
+            args.insert(idx, "-c".to_string());
+            idx += 1;
+            args.insert(idx, "color.status=always".to_string());
+            idx += 1;
+        } else if cmd == "grep" {
+            args.insert(idx, "--color=always".to_string());
+            idx += 1;
+        }
+    }
+    if cmd == "grep" {
+        args.insert(idx, "--exclude-dir=.git".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=.helm".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=.tox".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=.pulumi".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=.cache".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=.mypy_cache".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=.eggs".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=*.egg-info".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=*venv*".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=_build".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=__pycache__".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=.ruff_cache".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude=\"*.pyc\"".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=.pytest_cache".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude=poetry.lock".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude-dir=htmlcov".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude=\"*.html\"".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude=build.*trace".to_string());
+        idx += 1;
+        args.insert(idx, "--exclude=Session.vim".to_string());
     }
 
     let mut command = Command::new(cmd);
