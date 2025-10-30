@@ -1,0 +1,16 @@
+[package]
+name = "execute"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lexopt = "0.3.1"
+
+shellexpand = "3.1.1"
+brace-expand = "0.1.0"
+
+async-process = "2.5.0"
+futures-lite = "2.0"
+futures-util = "0.3"
+smol = "2.0.2"
+smol-timeout = "0.6.1"
