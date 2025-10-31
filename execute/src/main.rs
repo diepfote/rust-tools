@@ -218,7 +218,7 @@ async fn run_command(
             let stderr_str = collect_lines_poll_once(&mut stderr).await;
 
             Err(format!(
-                "timed out in '{}' after {:?}. stdout: '{:}' stderr: '{:}'",
+                "timed out in '{}' after {:?}.\nstdout:\n{:}\nstderr:\n{:}",
                 dir, to, stdout_str, stderr_str
             ))
         }
@@ -283,7 +283,16 @@ fn main() -> Result<(), lexopt::Error> {
     let command = args.command;
     let config_filename = args.config_filename;
 
+    log_info!("config file: {:}", config_filename);
+    log_info!("number of tasks: {}", max_concurrent_tasks);
+
     let files = get_files(config_filename, home);
+
+    let mut name = "files".to_string();
+    if in_repos {
+        name = "repos".to_string();
+    }
+    log_info!("number of {}: {}", name, files.len());
 
     let cmd = command[0].clone();
     let mut cmd_args: Vec<String> = Vec::new();
@@ -335,7 +344,7 @@ fn main() -> Result<(), lexopt::Error> {
                 if stderr.len() < 1 {
                     println!("{}{}", header, stdout);
                 } else {
-                    println!("{}stdout:{}\nstderr:\n{}", header, stdout, stderr);
+                    println!("{}stdout:\n{}\nstderr:\n{}", header, stdout, stderr);
                 }
             } else if let Err(err) = result {
                 // we hit this in case of a timeout
