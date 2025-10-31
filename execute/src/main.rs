@@ -1,12 +1,14 @@
 use async_process::{Command, Stdio};
+
 // type of BufReader::new(stderr).lines()
 use futures_lite::AsyncBufReadExt;
 use futures_lite::io::BufReader;
 // type of `tasks.next()
-use futures_lite::stream::StreamExt;
-use futures_util::stream::FuturesUnordered;
-// type of `task.timeout()` in match
+
+use futures::stream::{self, StreamExt};
+
 use smol_timeout::TimeoutExt;
+
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -286,25 +288,33 @@ fn main() -> Result<(), lexopt::Error> {
         cmd_args.push(arg);
     }
 
+    let max_concurrent_tasks = 4;
     smol::block_on(async {
-        let mut tasks = FuturesUnordered::new();
+        let mut stream = stream::iter(files)
+            .map(|file| {
+                let cmd_clone = cmd.clone();
+                let cmd_args_clone = cmd_args.clone();
 
-        for file in files {
-            tasks.push(smol::spawn(run_command(
-                cmd.clone(),
-                cmd_args.clone(),
-                file.clone().into(),
-                show_header,
-                use_color,
-                in_repos,
-                timeout,
-            )));
-        }
+                async move {
+                    let result = run_command(
+                        cmd_clone,
+                        cmd_args_clone,
+                        file.clone().into(),
+                        show_header,
+                        use_color,
+                        in_repos,
+                        timeout,
+                    )
+                    .await;
+                    result
+                }
+            })
+            .buffer_unordered(max_concurrent_tasks);
 
-        while let Some(result) = tasks.next().await {
+        while let Some(result) = stream.next().await {
             if let Ok((file, exit_code, stdout, stderr)) = result {
                 let mut header = format!(
-                    "--\nExit {}:'{}'\n",
+                    "--\nExit {}: '{}'\n",
                     exit_code.unwrap().to_string(),
                     file.as_str()
                 );
