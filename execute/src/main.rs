@@ -10,8 +10,8 @@ use futures_util::stream::FuturesUnordered;
 // type of `task.timeout()` in match
 use smol::lock::Semaphore;
 // to ensure the Semaphore is clonable
-use std::sync::Arc;
 use smol_timeout::TimeoutExt;
+use std::sync::Arc;
 
 use std::fs;
 use std::path::PathBuf;
@@ -30,6 +30,7 @@ struct Args {
     use_color: bool,
     in_repos: bool, // whether to operate on files or in repos
     config_filename: String,
+    max_concurrent_tasks: usize,
     timeout: Option<Duration>,
     command: Vec<String>,
 }
@@ -41,6 +42,7 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     let mut use_color = true;
     let mut in_repos = true;
     let mut timeout: Option<Duration> = None;
+    let mut max_concurrent_tasks = 4;
     let mut config_filename: String = "repo.conf".to_string();
     let mut command: Vec<String> = Vec::new();
 
@@ -49,6 +51,10 @@ fn parse_args() -> Result<Args, lexopt::Error> {
         match arg {
             Long("timeout") => {
                 timeout = Some(Duration::from_secs(parser.value()?.parse()?));
+            }
+
+            Short('t') | Long("max-concurrent-tasks") => {
+                max_concurrent_tasks = parser.value()?.parse()?;
             }
 
             Long("no-header") => {
@@ -77,12 +83,12 @@ fn parse_args() -> Result<Args, lexopt::Error> {
         }
     }
 
-    log_info!("config file: {:}", config_filename);
     Ok(Args {
         show_header,
         use_color,
         in_repos,
         config_filename,
+        max_concurrent_tasks,
         timeout,
         command: if command.is_empty() {
             return Err("missing command/args".into());
@@ -113,7 +119,6 @@ async fn run_command(
     cmd: String,
     arguments: Vec<String>,
     file: PathBuf,
-    show_header: bool,
     use_color: bool,
     is_repos: bool,
     timeout: Option<Duration>,
@@ -279,6 +284,7 @@ fn main() -> Result<(), lexopt::Error> {
     let show_header = args.show_header;
     let use_color = args.use_color;
     let in_repos = args.in_repos;
+    let max_concurrent_tasks = args.max_concurrent_tasks;
     let timeout = args.timeout;
     let command = args.command;
     let config_filename = args.config_filename;
@@ -301,7 +307,6 @@ fn main() -> Result<(), lexopt::Error> {
         cmd_args.push(arg);
     }
 
-    let max_concurrent_tasks = 4;
     smol::block_on(async {
         let mut tasks = FuturesUnordered::new();
         let semaphore = Arc::new(Semaphore::new(max_concurrent_tasks));
@@ -319,7 +324,6 @@ fn main() -> Result<(), lexopt::Error> {
                     cmd_clone,
                     cmd_args_clone,
                     file.clone().into(),
-                    show_header,
                     use_color,
                     in_repos,
                     timeout,
