@@ -225,10 +225,14 @@ async fn run_command(
             let stdout_str = collect_lines_poll_once(&mut stdout).await;
             let stderr_str = collect_lines_poll_once(&mut stderr).await;
 
-            Err(format!(
-                "timed out in '{}' after {:?}.\nstdout:\n{:}\nstderr:\n{:}",
-                dir, to, stdout_str, stderr_str
-            ))
+            if stderr_str.len() < 1 {
+                Err(format!("timed out in '{}' after {:?}.", dir, to))
+            } else {
+                Err(format!(
+                    "timed out in '{}' after {:?}.\n[.] stdout:\n{:}\n[.] stderr:\n{:}",
+                    dir, to, stdout_str, stderr_str
+                ))
+            }
         }
     } else {
         // this condition does not use a timeout
@@ -340,7 +344,7 @@ fn main() -> Result<(), lexopt::Error> {
         while let Some(result) = tasks.next().await {
             if let Ok((file, exit_code, stdout, stderr)) = result {
                 let mut header = format!(
-                    "--\nExit {}: '{}'\n",
+                    "--\n. Exit {}: '{}'\n",
                     exit_code.unwrap().to_string(),
                     file.as_str()
                 );
@@ -351,11 +355,11 @@ fn main() -> Result<(), lexopt::Error> {
                 if stderr.len() < 1 {
                     println!("{}{}", header, stdout);
                 } else {
-                    println!("{}stdout:\n{}\nstderr:\n{}", header, stdout, stderr);
+                    println!("{}[.]stdout:\n{}\n[.] stderr:\n{}", header, stdout, stderr);
                 }
             } else if let Err(err) = result {
                 // we hit this in case of a timeout
-                eprintln!("--\nError: {}", err);
+                eprintln!("--\n! Error: {}", err);
             } else {
                 eprintln!("--\nWe should never reach this");
             }
