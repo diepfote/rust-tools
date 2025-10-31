@@ -4,9 +4,13 @@ use async_process::{Command, Stdio};
 use futures_lite::AsyncBufReadExt;
 use futures_lite::io::BufReader;
 // type of `tasks.next()
+use futures_lite::stream::StreamExt;
+use futures_util::stream::FuturesUnordered;
 
-use futures::stream::{self, StreamExt};
-
+// type of `task.timeout()` in match
+use smol::lock::Semaphore;
+// to ensure the Semaphore is clonable
+use std::sync::Arc;
 use smol_timeout::TimeoutExt;
 
 use std::fs;
@@ -290,28 +294,34 @@ fn main() -> Result<(), lexopt::Error> {
 
     let max_concurrent_tasks = 4;
     smol::block_on(async {
-        let mut stream = stream::iter(files)
-            .map(|file| {
-                let cmd_clone = cmd.clone();
-                let cmd_args_clone = cmd_args.clone();
+        let mut tasks = FuturesUnordered::new();
+        let semaphore = Arc::new(Semaphore::new(max_concurrent_tasks));
 
-                async move {
-                    let result = run_command(
-                        cmd_clone,
-                        cmd_args_clone,
-                        file.clone().into(),
-                        show_header,
-                        use_color,
-                        in_repos,
-                        timeout,
-                    )
-                    .await;
-                    result
-                }
-            })
-            .buffer_unordered(max_concurrent_tasks);
+        for file in files {
+            let sem_clone = semaphore.clone();
+            let cmd_clone = cmd.clone();
+            let cmd_args_clone = cmd_args.clone();
 
-        while let Some(result) = stream.next().await {
+            tasks.push(smol::spawn(async move {
+                // will be release when it goes out of scope
+                let _permit = sem_clone.acquire().await;
+
+                let result = run_command(
+                    cmd_clone,
+                    cmd_args_clone,
+                    file.clone().into(),
+                    show_header,
+                    use_color,
+                    in_repos,
+                    timeout,
+                )
+                .await;
+
+                result
+            }));
+        }
+
+        while let Some(result) = tasks.next().await {
             if let Ok((file, exit_code, stdout, stderr)) = result {
                 let mut header = format!(
                     "--\nExit {}: '{}'\n",
