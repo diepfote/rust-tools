@@ -19,13 +19,6 @@ mod logging;
 mod environment;
 pub use environment::read_env_variables;
 
-// @TODO print Stderr on non-zero exit, maybe we just go the log_err route
-//       but it would be nicer to actually return an error and print it
-//
-// @TODO can we poll_once for both stderr and stdout after waiting for the task?
-//
-// @TODO cleanup
-
 struct Args {
     show_header: bool,
     use_color: bool,
@@ -80,11 +73,11 @@ fn parse_args() -> Result<Args, lexopt::Error> {
 
     log_info!("config file: {:}", config_filename);
     Ok(Args {
-        show_header: show_header,
-        use_color: use_color,
-        in_repos: in_repos,
+        show_header,
+        use_color,
+        in_repos,
         config_filename,
-        timeout: timeout,
+        timeout,
         command: if command.is_empty() {
             return Err("missing command/args".into());
         } else {
@@ -93,20 +86,21 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     })
 }
 
-// fn collect_lines_non_blocking() {
-
-// }
-
-async fn collect_lines_async<T: AsyncBufReadExt + Unpin>(
+async fn collect_lines_poll_once<T: futures_lite::AsyncBufRead + Unpin>(
     lines: &mut futures_lite::io::Lines<T>,
 ) -> String {
-    let mut out = Vec::new();
-    while let Some(line) = lines.next().await {
-        if let Ok(line) = line {
-            out.push(line);
+    let mut buf = Vec::new();
+    loop {
+        match smol::future::poll_once(lines.next()).await {
+            Some(Some(Ok(line))) => buf.push(line),
+            Some(Some(Err(err))) => {
+                debug!("Error reading line: {:?}", err);
+                break;
+            }
+            Some(None) | None => break, // Stream ended or nothing available
         }
     }
-    out.join("\n")
+    buf.join("\n")
 }
 
 async fn run_command(
@@ -117,7 +111,7 @@ async fn run_command(
     use_color: bool,
     is_repos: bool,
     timeout: Option<Duration>,
-) -> Result<(String, String), String> {
+) -> Result<(String, Option<i32>, String, String), String> {
     let mut args = arguments.clone();
 
     let mut idx: usize = 0;
@@ -188,6 +182,8 @@ async fn run_command(
         .map_err(|e| format!("spawn failed: {}", e))?;
 
     let mut stdout = BufReader::new(child.stdout.take().unwrap()).lines();
+    let mut stderr = BufReader::new(child.stderr.take().unwrap()).lines();
+
     let task = async {
         let status = child
             .status()
@@ -195,13 +191,13 @@ async fn run_command(
             .map_err(|e| format!("wait failed: {}", e))?;
         let fname = file.to_string_lossy().into_owned();
 
-        if !status.success() {
-            debug!("Non-zero exit. file: {:?}", file);
-            // Err("Non-zero");
-        }
-        let out_str = collect_lines_async(&mut stdout).await;
+        // if !status.success() {
+        //     debug!("Non-zero exit. file: {:?}", file);
+        // }
+        let stdout_str = collect_lines_poll_once(&mut stdout).await;
+        let stderr_str = collect_lines_poll_once(&mut stderr).await;
 
-        Ok((fname, out_str))
+        Ok((fname, status.code(), stdout_str, stderr_str))
     };
 
     if let Some(to) = timeout {
@@ -212,34 +208,13 @@ async fn run_command(
             let _ = child.kill();
             let dir = file.to_string_lossy().into_owned();
 
-            let mut stderr_buf: Vec<String> = Vec::new();
-            if let Some(stderr) = child.stderr.take() {
-                let mut lines = BufReader::new(stderr).lines();
-                loop {
-                    // poll_once returns a future; you must await it to get Option<Option<String>>
-                    match smol::future::poll_once(lines.next()).await {
-                        Some(Some(line)) => stderr_buf.push(line.unwrap()), // got a line
-                        Some(None) => break,                                // stream ended
-                        None => break, // nothing available right now; exit quickly
-                    }
-                }
-            } else {
-                // child.stderr was already taken, handle as error
-                debug!("Cannot read stderr, already taken. file: {:?}", file);
-                // Err("Cannot read stderr, already taken.");
-            }
+            let stdout_str = collect_lines_poll_once(&mut stdout).await;
+            let stderr_str = collect_lines_poll_once(&mut stderr).await;
 
-            debug!("stderr_buf: {:?}", stderr_buf);
-            if stderr_buf.is_empty() {
-                Err(format!("timed out in '{}' after {:?}.", dir, to))
-            } else {
-                Err(format!(
-                    "timed out in '{}' after {:?}. stderr: {:?}",
-                    dir,
-                    to,
-                    stderr_buf.join("\n")
-                ))
-            }
+            Err(format!(
+                "timed out in '{}' after {:?}. stdout: '{:}' stderr: '{:}'",
+                dir, to, stdout_str, stderr_str
+            ))
         }
     } else {
         // this condition does not use a timeout
@@ -265,9 +240,7 @@ fn get_files(config_filename: String, home: String) -> Vec<String> {
         .map(|line| line.to_string())
         .collect();
 
-    // debug!("lines: {:?}", lines);
     for line in lines {
-        // debug!("line: {:?}", line);
         if line.starts_with("#") || line.len() < 1 {
             continue;
         }
@@ -281,8 +254,6 @@ fn get_files(config_filename: String, home: String) -> Vec<String> {
                     .into_owned()
             })
             .collect();
-        // debug!("fully_expanded: {:?}", fully_expanded);
-        // debug!("{}", "---");
 
         for file in fully_expanded {
             files.push(file);
@@ -290,7 +261,7 @@ fn get_files(config_filename: String, home: String) -> Vec<String> {
     }
 
     debug!("files: {:?}", files);
-    return files;
+    files
 }
 
 fn main() -> Result<(), lexopt::Error> {
@@ -303,14 +274,10 @@ fn main() -> Result<(), lexopt::Error> {
     let use_color = args.use_color;
     let in_repos = args.in_repos;
     let timeout = args.timeout;
-    // let timeout: Option<Duration> = Some(Duration::from_secs(1));
-    // let timeout: Option<Duration> = None;
     let command = args.command;
     let config_filename = args.config_filename;
 
     let files = get_files(config_filename, home);
-    // let _ = get_files(config_filename, home);
-    // let files = vec![PathBuf::from("/Users/florian.sorko/Repos/scripts")];
 
     let cmd = command[0].clone();
     let mut cmd_args: Vec<String> = Vec::new();
@@ -335,31 +302,28 @@ fn main() -> Result<(), lexopt::Error> {
         }
 
         while let Some(result) = tasks.next().await {
-            if let Ok((file, stdout)) = result {
-                if in_repos {
-                    if stdout.len() < 1 {
-                        println!("--\nFinished: '{}'", file);
-                    } else {
-                        println!("--\nFinished: '{}'\n{}", file, stdout);
-                    }
+            if let Ok((file, exit_code, stdout, stderr)) = result {
+                let mut header = format!(
+                    "--\nExit {}:'{}'\n",
+                    exit_code.unwrap().to_string(),
+                    file.as_str()
+                );
+                if !show_header {
+                    header = "".to_string();
+                }
+
+                if stderr.len() < 1 {
+                    println!("{}{}", header, stdout);
                 } else {
-                    let mut header = format!("--\nFinished:'{}'\n", file.as_str());
-                    if !show_header {
-                        header = "".to_string();
-                    }
-                    if stdout.len() < 1 {
-                        print!("{}", header);
-                    } else {
-                        println!("{}{}", header, stdout);
-                    }
+                    println!("{}stdout:{}\nstderr:\n{}", header, stdout, stderr);
                 }
             } else if let Err(err) = result {
+                // we hit this in case of a timeout
                 eprintln!("--\nError: {}", err);
             } else {
                 eprintln!("--\nWe should never reach this");
             }
         }
     });
-
     Ok(())
 }
