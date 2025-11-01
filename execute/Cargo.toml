@@ -8,6 +8,7 @@ lexopt = "0.3.1"
 
 shellexpand = "3.1.1"
 brace-expand = "0.1.0"
+glob = "0.3.3"
 
 async-process = "2.5.0"
 futures-lite = "2.0"

@@ -21,7 +21,8 @@ use std::error::Error;
 use std::fmt;
 
 use brace_expand::brace_expand;
-use shellexpand;
+use glob::glob;
+use shellexpand::full;
 
 mod logging;
 
@@ -287,20 +288,30 @@ fn get_files(config_filename: String, home: String) -> Vec<String> {
         }
 
         let brace_expanded = brace_expand(line.as_str());
-        let fully_expanded: Vec<String> = brace_expanded
-            .iter()
-            .map(|item| {
-                shellexpand::full(&item)
-                    .expect("expansion failed")
-                    .into_owned()
-            })
-            .collect();
+        debug!("brace_expanded: {:?}", brace_expanded);
 
-        for file in fully_expanded {
+        let shell_expanded: Vec<String> = brace_expanded
+            .iter()
+            .map(|item| full(&item).expect("shellexpand failed").into_owned())
+            .collect();
+        debug!("shellexpand: {:?}", shell_expanded);
+
+        let mut glob_expanded: Vec<String> = Vec::new();
+        for item in shell_expanded {
+            for entry in glob(&item).expect("glob expand failed") {
+                if let Ok(path) = entry {
+                    let path_str = path.display().to_string();
+                    debug!("push ok: {:?}", path_str);
+                    glob_expanded.push(path_str);
+                }
+            }
+        }
+        debug!("glob_expanded: {:?}", glob_expanded);
+
+        for file in glob_expanded {
             files.push(file);
         }
     }
-
     debug!("files: {:?}", files);
     files
 }
@@ -321,9 +332,6 @@ fn main() -> Result<(), lexopt::Error> {
 
     log_info!("config file: {:}", config_filename);
     log_info!("number of tasks: {}", max_concurrent_tasks);
-    if let Some(timeout) = timeout {
-        log_info!("timeout: {:?}", timeout);
-    }
 
     let files = get_files(config_filename, home);
 
@@ -332,6 +340,9 @@ fn main() -> Result<(), lexopt::Error> {
         name = "repos".to_string();
     }
     log_info!("number of {}: {}", name, files.len());
+    if let Some(timeout) = timeout {
+        log_info!("timeout: {:?}", timeout);
+    }
 
     let cmd = command[0].clone();
     let mut cmd_args: Vec<String> = Vec::new();
