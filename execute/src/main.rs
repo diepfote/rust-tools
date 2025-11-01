@@ -45,9 +45,6 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     let mut use_color = true;
     let mut in_repos = true;
     let mut timeout: Option<Duration> = None;
-    if in_repos {
-        timeout = Some(Duration::from_secs(3));
-    }
     let mut max_concurrent_tasks = 4;
     let mut config_filename: String = "repo.conf".to_string();
     let mut command: Vec<String> = Vec::new();
@@ -87,6 +84,10 @@ fn parse_args() -> Result<Args, lexopt::Error> {
             }
             _ => return Err(arg.unexpected()),
         }
+    }
+
+    if in_repos && timeout == None {
+        timeout = Some(Duration::from_secs(3));
     }
 
     Ok(Args {
