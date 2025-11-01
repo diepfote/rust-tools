@@ -17,6 +17,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use std::error::Error;
+use std::fmt;
+
 use brace_expand::brace_expand;
 use shellexpand;
 
@@ -52,11 +55,11 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     let mut parser = lexopt::Parser::from_env();
     while let Some(arg) = parser.next()? {
         match arg {
-            Long("timeout") => {
+            Short('t') | Long("timeout") => {
                 timeout = Some(Duration::from_secs(parser.value()?.parse()?));
             }
 
-            Short('t') | Long("max-concurrent-tasks") => {
+            Short('w') | Long("max-concurrent-tasks") => {
                 max_concurrent_tasks = parser.value()?.parse()?;
             }
 
@@ -68,7 +71,7 @@ fn parse_args() -> Result<Args, lexopt::Error> {
                 use_color = false;
             }
 
-            Short('f') | Long("files") => {
+            Long("files") => {
                 in_repos = false;
             }
 
@@ -116,6 +119,25 @@ async fn collect_lines_poll_once<T: futures_lite::AsyncBufRead + Unpin>(
         }
     }
     buf.join("\n")
+}
+
+#[derive(Debug)]
+struct StringError(String);
+
+impl fmt::Display for StringError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Error for StringError {}
+
+#[derive(Debug)]
+struct SpawnError {
+    source: Box<dyn std::error::Error + Send + Sync>,
+    spawn_dir: String,
+    command: String,
+    command_args: Vec<String>,
 }
 
 async fn run_command(
@@ -225,14 +247,14 @@ async fn run_command(
             let stdout_str = collect_lines_poll_once(&mut stdout).await;
             let stderr_str = collect_lines_poll_once(&mut stderr).await;
 
-            if stderr_str.len() < 1 {
-                Err(format!("timed out in '{}' after {:?}.", dir, to))
-            } else {
-                Err(format!(
-                    "timed out in '{}' after {:?}.\n[.] stdout:\n{:}\n[.] stderr:\n{:}",
-                    dir, to, stdout_str, stderr_str
-                ))
+            let mut stderr_display = "".to_string();
+            if stderr_str.len() > 0 {
+                stderr_display = format!("\n[.] stderr:\n{}", stderr_str);
             }
+            Err(format!(
+                "Timed out in '{}' after {:?}.\n{:}{:}",
+                dir, to, stdout_str, stderr_display
+            ))
         }
     } else {
         // this condition does not use a timeout
@@ -298,6 +320,9 @@ fn main() -> Result<(), lexopt::Error> {
 
     log_info!("config file: {:}", config_filename);
     log_info!("number of tasks: {}", max_concurrent_tasks);
+    if let Some(timeout) = timeout {
+        log_info!("timeout: {:?}", timeout);
+    }
 
     let files = get_files(config_filename, home);
 
@@ -321,7 +346,9 @@ fn main() -> Result<(), lexopt::Error> {
         for file in files {
             let sem_clone = semaphore.clone();
             let cmd_clone = cmd.clone();
+            let cmd_clone_error = cmd.clone();
             let cmd_args_clone = cmd_args.clone();
+            let cmd_args_clone_error = cmd_args.clone();
 
             tasks.push(smol::spawn(async move {
                 // will be release when it goes out of scope
@@ -337,31 +364,35 @@ fn main() -> Result<(), lexopt::Error> {
                 )
                 .await;
 
-                result
+                result.map_err(|e| SpawnError {
+                    source: Box::new(StringError(e)),
+                    spawn_dir: file,
+                    command: cmd_clone_error,
+                    command_args: cmd_args_clone_error,
+                })
             }));
         }
 
         while let Some(result) = tasks.next().await {
             if let Ok((file, exit_code, stdout, stderr)) = result {
-                let mut header = format!(
-                    "--\n. Exit {}: '{}'\n",
-                    exit_code.unwrap().to_string(),
-                    file.as_str()
-                );
+                let mut exit_info = "".to_string();
+                let ec = exit_code.unwrap();
+                if ec != 0 {
+                    exit_info = format!("[-] Non-zero {}: ", ec.to_string());
+                }
+                let mut header = format!("--\n{}'{}'\n", exit_info, file.as_str());
                 if !show_header {
                     header = "".to_string();
                 }
 
-                if stderr.len() < 1 {
-                    println!("{}{}", header, stdout);
-                } else {
-                    println!("{}[.]stdout:\n{}\n[.] stderr:\n{}", header, stdout, stderr);
+                let mut stderr_display = "".to_string();
+                if stderr.len() > 0 {
+                    stderr_display = format!("\n[.] stderr:\n{}", stderr);
                 }
+                println!("{}{}{}", header, stdout, stderr_display);
             } else if let Err(err) = result {
-                // we hit this in case of a timeout
-                eprintln!("--\n! Error: {}", err);
-            } else {
-                eprintln!("--\nWe should never reach this");
+                // we hit this in case of a timeout (or if we cannot spawn there)
+                eprintln!("--\n! {:?}", err);
             }
         }
     });
