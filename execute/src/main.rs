@@ -259,7 +259,7 @@ fn get_files(config_filename: String, home: String) -> Vec<String> {
         .collect();
 
     for line in lines {
-        if line.starts_with("#") || line.len() < 1 {
+        if line.starts_with("#") || line.trim().len() < 1 {
             continue;
         }
 
