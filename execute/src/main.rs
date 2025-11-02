@@ -17,9 +17,6 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use std::error::Error;
-use std::fmt;
-
 use brace_expand::brace_expand;
 use glob::glob;
 use shellexpand::full;
@@ -123,31 +120,12 @@ async fn collect_lines_poll_once<T: futures_lite::AsyncBufRead + Unpin>(
     buf.join("\n")
 }
 
-#[derive(Debug)]
-struct StringError(String);
-
-impl fmt::Display for StringError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Error for StringError {}
-
-#[derive(Debug)]
-struct SpawnError {
-    source: Box<dyn std::error::Error + Send + Sync>,
-    spawn_dir: String,
-    command: String,
-    command_args: Vec<String>,
-}
-
 async fn run_command(
     cmd: String,
     arguments: Vec<String>,
     file: PathBuf,
     use_color: bool,
-    is_repos: bool,
+    in_repos: bool,
     timeout: Option<Duration>,
 ) -> Result<(String, Option<i32>, String, String), String> {
     let mut args = arguments.clone();
@@ -204,8 +182,8 @@ async fn run_command(
         args.insert(idx, "--exclude=Session.vim".to_string());
     }
 
-    let mut command = Command::new(cmd);
-    if is_repos {
+    let mut command = Command::new(cmd.clone());
+    if in_repos {
         command.current_dir(file.clone());
     } else {
         args.push(file.to_string_lossy().to_string());
@@ -214,10 +192,23 @@ async fn run_command(
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
 
+    let mut err_info = format!(
+        "Spawn failed in '{}'. Cmd: {:?}, Args: {:?}",
+        file.to_string_lossy().into_owned(),
+        cmd,
+        args.clone(),
+    );
+    if !in_repos {
+        err_info = format!(
+            "Spawn failed (--files): Cmd: {:?}, Args: {:?}",
+            cmd,
+            args.clone(),
+        );
+    }
     let mut child = command
         .args(args)
         .spawn()
-        .map_err(|e| format!("spawn failed: {}", e))?;
+        .map_err(|e| format!("{}: {}", err_info, e))?;
 
     let mut stdout = BufReader::new(child.stdout.take().unwrap()).lines();
     let mut stderr = BufReader::new(child.stderr.take().unwrap()).lines();
@@ -226,12 +217,9 @@ async fn run_command(
         let status = child
             .status()
             .await
-            .map_err(|e| format!("wait failed: {}", e))?;
+            .map_err(|e| format!("Wait failed for '{:?}': {}", file, e))?;
         let fname = file.to_string_lossy().into_owned();
 
-        // if !status.success() {
-        //     debug!("Non-zero exit. file: {:?}", file);
-        // }
         let stdout_str = collect_lines_poll_once(&mut stdout).await;
         let stderr_str = collect_lines_poll_once(&mut stderr).await;
 
@@ -254,7 +242,7 @@ async fn run_command(
                 stderr_display = format!("\n[.] stderr:\n{}", stderr_str);
             }
             Err(format!(
-                "Timed out in '{}' after {:?}.\n{:}{:}",
+                "Timed out in '{}' after {:?}.\n{}{}",
                 dir, to, stdout_str, stderr_display
             ))
         }
@@ -358,9 +346,7 @@ fn main() -> Result<(), lexopt::Error> {
         for file in files {
             let sem_clone = semaphore.clone();
             let cmd_clone = cmd.clone();
-            let cmd_clone_error = cmd.clone();
             let cmd_args_clone = cmd_args.clone();
-            let cmd_args_clone_error = cmd_args.clone();
 
             tasks.push(smol::spawn(async move {
                 // will be release when it goes out of scope
@@ -376,12 +362,7 @@ fn main() -> Result<(), lexopt::Error> {
                 )
                 .await;
 
-                result.map_err(|e| SpawnError {
-                    source: Box::new(StringError(e)),
-                    spawn_dir: file,
-                    command: cmd_clone_error,
-                    command_args: cmd_args_clone_error,
-                })
+                result
             }));
         }
 
@@ -403,8 +384,7 @@ fn main() -> Result<(), lexopt::Error> {
                 }
                 println!("{}{}{}", header, stdout, stderr_display);
             } else if let Err(err) = result {
-                // we hit this in case of a timeout (or if we cannot spawn there)
-                eprintln!("--\n! {:?}", err);
+                eprintln!("--\n! {}", err);
             }
         }
     });
