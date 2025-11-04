@@ -17,6 +17,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use brace_expand::brace_expand;
 use globby::glob;
 use shellexpand::full;
 
@@ -277,15 +278,23 @@ fn get_paths(config_filename: String, home: String) -> Vec<String> {
         let shell_expanded: String = full(&line).expect("shellexpand failed").into_owned();
         debug!("shell_expanded: {}", shell_expanded);
 
-        if !shell_expanded.contains("*") {
+        if !shell_expanded.contains("*") && !shell_expanded.contains("{") {
             paths.push(shell_expanded.clone());
             continue;
         }
 
-        let glob_expanded: Vec<String> = glob(&shell_expanded)
-            .expect("Glob failed")
-            .map(|item| item.expect("Error on path in glob").display().to_string())
-            .collect();
+        let brace_expanded = brace_expand(&shell_expanded);
+        debug!("brace_expanded: {:?}", brace_expanded);
+
+        let mut glob_expanded: Vec<String> = Vec::new();
+        for expanded in brace_expanded {
+            let mut globbed: Vec<String> = glob(&expanded)
+                .expect("Glob failed")
+                .map(|item| item.expect("Error on path in glob").display().to_string())
+                .collect();
+
+            glob_expanded.append(&mut globbed);
+        }
         debug!("glob_expanded: {:?}", glob_expanded);
 
         for path in glob_expanded {
