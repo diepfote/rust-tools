@@ -17,8 +17,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use brace_expand::brace_expand;
-use glob::glob;
+use globby::glob;
 use shellexpand::full;
 
 mod logging;
@@ -252,8 +251,8 @@ async fn run_command(
     }
 }
 
-fn get_files(config_filename: String, home: String) -> Vec<String> {
-    let mut files: Vec<String> = Vec::new();
+fn get_paths(config_filename: String, home: String) -> Vec<String> {
+    let mut paths: Vec<String> = Vec::new();
 
     let mut config_path = PathBuf::from(config_filename.as_str());
     if !config_path.is_absolute() {
@@ -275,33 +274,26 @@ fn get_files(config_filename: String, home: String) -> Vec<String> {
             continue;
         }
 
-        let brace_expanded = brace_expand(line.as_str());
-        debug!("brace_expanded: {:?}", brace_expanded);
+        let shell_expanded: String = full(&line).expect("shellexpand failed").into_owned();
+        debug!("shell_expanded: {}", shell_expanded);
 
-        let shell_expanded: Vec<String> = brace_expanded
-            .iter()
-            .map(|item| full(&item).expect("shellexpand failed").into_owned())
-            .collect();
-        debug!("shellexpand: {:?}", shell_expanded);
-
-        let mut glob_expanded: Vec<String> = Vec::new();
-        for item in shell_expanded {
-            for entry in glob(&item).expect("glob expand failed") {
-                if let Ok(path) = entry {
-                    let path_str = path.display().to_string();
-                    debug!("push ok: {:?}", path_str);
-                    glob_expanded.push(path_str);
-                }
-            }
+        if !shell_expanded.contains("*") {
+            paths.push(shell_expanded.clone());
+            continue;
         }
+
+        let glob_expanded: Vec<String> = glob(&shell_expanded)
+            .expect("Glob failed")
+            .map(|item| item.expect("Error on path in glob").display().to_string())
+            .collect();
         debug!("glob_expanded: {:?}", glob_expanded);
 
-        for file in glob_expanded {
-            files.push(file);
+        for path in glob_expanded {
+            paths.push(path);
         }
     }
-    debug!("files: {:?}", files);
-    files
+    debug!("paths: {:?}", paths);
+    paths
 }
 
 fn main() -> Result<(), lexopt::Error> {
@@ -321,13 +313,13 @@ fn main() -> Result<(), lexopt::Error> {
     log_info!("config file: {:}", config_filename);
     log_info!("number of tasks: {}", max_concurrent_tasks);
 
-    let files = get_files(config_filename, home);
+    let paths = get_paths(config_filename, home);
 
     let mut name = "files".to_string();
     if in_repos {
         name = "repos".to_string();
     }
-    log_info!("number of {}: {}", name, files.len());
+    log_info!("number of {}: {}", name, paths.len());
     if let Some(timeout) = timeout {
         log_info!("timeout: {:?}", timeout);
     }
@@ -343,7 +335,7 @@ fn main() -> Result<(), lexopt::Error> {
         let mut tasks = FuturesUnordered::new();
         let semaphore = Arc::new(Semaphore::new(max_concurrent_tasks));
 
-        for file in files {
+        for file in paths {
             let sem_clone = semaphore.clone();
             let cmd_clone = cmd.clone();
             let cmd_args_clone = cmd_args.clone();
