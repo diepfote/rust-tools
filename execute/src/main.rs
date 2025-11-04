@@ -311,7 +311,7 @@ fn main() -> Result<(), lexopt::Error> {
     let config_filename = args.config_filename;
 
     log_info!("config file: {:}", config_filename);
-    log_info!("number of tasks: {}", max_concurrent_tasks);
+    log_info!("number of concurrent tasks: {}", max_concurrent_tasks);
 
     let paths = get_paths(config_filename, home);
 
@@ -319,7 +319,8 @@ fn main() -> Result<(), lexopt::Error> {
     if in_repos {
         name = "repos".to_string();
     }
-    log_info!("number of {}: {}", name, paths.len());
+    let number_of_paths = paths.len();
+    log_info!("number of {}: {}", name, number_of_paths);
     if let Some(timeout) = timeout {
         log_info!("timeout: {:?}", timeout);
     }
@@ -358,6 +359,7 @@ fn main() -> Result<(), lexopt::Error> {
             }));
         }
 
+        let mut tasks_done = 0;
         while let Some(result) = tasks.next().await {
             if let Ok((file, exit_code, stdout, stderr)) = result {
                 let mut exit_info = "".to_string();
@@ -377,6 +379,15 @@ fn main() -> Result<(), lexopt::Error> {
                 println!("{}{}{}", header, stdout, stderr_display);
             } else if let Err(err) = result {
                 eprintln!("--\n! {}", err);
+            }
+            tasks_done += 1;
+
+            if tasks_done % 10 == 0 {
+                let mut remaining_tasks = 0;
+                if number_of_paths > 0 {
+                    remaining_tasks = number_of_paths - tasks_done;
+                }
+                log_info!("remaining tasks: {}", remaining_tasks);
             }
         }
     });
