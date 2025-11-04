@@ -380,14 +380,16 @@ fn main() -> Result<(), lexopt::Error> {
             } else if let Err(err) = result {
                 eprintln!("--\n! {}", err);
             }
-            tasks_done += 1;
 
-            if tasks_done % 10 == 0 {
-                let mut remaining_tasks = 0;
-                if number_of_paths > 0 {
-                    remaining_tasks = number_of_paths - tasks_done;
+            if !show_header {
+                tasks_done += 1;
+                if tasks_done % 10 == 0 {
+                    let mut remaining_tasks = 0;
+                    if number_of_paths > 0 {
+                        remaining_tasks = number_of_paths - tasks_done;
+                    }
+                    log_info!("remaining tasks: {}", remaining_tasks);
                 }
-                log_info!("remaining tasks: {}", remaining_tasks);
             }
         }
     });
