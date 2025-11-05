@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "bash_helper"
+name = "bash-helper"
 version = "0.1.0"
