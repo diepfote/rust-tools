@@ -1,3 +1,5 @@
+use gethostname::gethostname;
+
 use std::fs;
 use std::process::Command;
 
@@ -33,7 +35,7 @@ fn print_shortened_path(
     let mut prefix: String = "".to_string();
     if in_container {
         prefix += not_host_env_color;
-        prefix += "NOT_HOST_ENV: ";
+        prefix += format!("{}{}", gethostname().display().to_string(), ": ").as_str();
         prefix += no_color;
     }
 
