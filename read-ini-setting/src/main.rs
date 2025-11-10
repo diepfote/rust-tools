@@ -6,6 +6,7 @@ mod logging;
 // USAGE: read-ini-setting <CONF_FILE> <ITEM> [<SECTION>]
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
+    debug!("args: {:?}", args);
 
     let filename = args.get(0).unwrap().to_owned();
     let conf = Ini::load_from_file(filename).unwrap();
