@@ -275,7 +275,12 @@ fn get_paths(config_filename: String, home: String) -> Vec<String> {
             continue;
         }
 
-        let shell_expanded: String = full(&line).expect("shellexpand failed").into_owned();
+        let shell_expanded: String;
+        if let Ok(sh_expanded) = full(&line) {
+            shell_expanded = sh_expanded.into_owned();
+        } else {
+            shell_expanded = line;
+        }
         debug!("shell_expanded: {}", shell_expanded);
 
         if !shell_expanded.contains("*") && !shell_expanded.contains("{") {
