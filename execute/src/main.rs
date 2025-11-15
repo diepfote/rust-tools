@@ -382,10 +382,14 @@ fn main() -> Result<(), lexopt::Error> {
                 }
 
                 let mut stderr_display = "".to_string();
-                if stderr.len() > 0 {
+                let std_err_len = stderr.len();
+                if std_err_len > 0 {
                     stderr_display = format!("\n[.] stderr:\n{}", stderr);
                 }
-                println!("{}{}{}", header, stdout, stderr_display);
+                let is_no_output = stdout.len() <= 0 && std_err_len <= 0;
+                if !is_no_output {
+                    println!("{}{}{}", header, stdout, stderr_display);
+                }
             } else if let Err(err) = result {
                 eprintln!("--\n! {}", err);
             }
