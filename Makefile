@@ -27,7 +27,13 @@ build-debug: fmt
 .PHONY: build-cross-x86_64
 build-cross-x86_64:
 	cargo build --target x86_64-unknown-linux-gnu --release
+.PHONY: build-debug-cross-x86_64
+build-debug-cross-x86_64:
+	RUSTFLAGS="--cfg debug" cargo build --target x86_64-unknown-linux-gnu
+
 .PHONY: build-cross-aarch64
 build-cross-aarch64:
 	cargo build --target aarch64-unknown-linux-gnu --release
-
+.PHONY: build-debug-cross-aarch64
+build-debug-cross-aarch64:
+	RUSTFLAGS="--cfg debug" cargo build --target aarch64-unknown-linux-gnu
