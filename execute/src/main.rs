@@ -36,14 +36,29 @@ struct Args {
     command: Vec<String>,
 }
 
-fn parse_args() -> Result<Args, lexopt::Error> {
+fn get_usage_info(max_concurrent_tasks: usize, config: String, timeout: u64, report_tasks_step: usize) -> String {
+    let rendered = format!(r#"usage: execute [options] [flags] -- <args>
+  options:
+    -w/--max-concurrent-tasks <num> [default: {}]
+    -c/--config <file/fd> [default: {}]
+    -t/--timeout <seconds> [default: {}]
+  flags:
+    --no-color ... disable color for `git` and `grep`  [default: colored]
+    --no-header ... will report remaining tasks to stderr every {} tasks"#
+, max_concurrent_tasks, config, timeout, report_tasks_step);
+
+    return rendered;
+}
+
+fn parse_args(report_tasks_step: usize) -> Result<Args, lexopt::Error> {
     use lexopt::prelude::*;
 
     let mut show_header = true;
     let mut use_color = true;
     let mut in_repos = true;
     let mut timeout: Option<Duration> = None;
-    let mut max_concurrent_tasks = 4;
+    let timeout_default:u64 = 3;  // seconds
+    let mut max_concurrent_tasks: usize = 4;
     let mut config_filename: String = "repo.conf".to_string();
     let mut command: Vec<String> = Vec::new();
 
@@ -76,6 +91,9 @@ fn parse_args() -> Result<Args, lexopt::Error> {
                     config_filename = value_str.to_string();
                 }
             }
+            Short('h') | Long("help") => {
+                return Err(get_usage_info(max_concurrent_tasks, config_filename, timeout_default, report_tasks_step).into());
+            }
 
             Value(val) => {
                 command.push(val.string()?);
@@ -85,18 +103,18 @@ fn parse_args() -> Result<Args, lexopt::Error> {
     }
 
     if in_repos && timeout == None {
-        timeout = Some(Duration::from_secs(3));
+        timeout = Some(Duration::from_secs(timeout_default));
     }
 
     Ok(Args {
         show_header,
         use_color,
         in_repos,
-        config_filename,
+        config_filename: config_filename.clone(),
         max_concurrent_tasks,
         timeout,
         command: if command.is_empty() {
-            return Err("missing command/args".into());
+            return Err(get_usage_info(max_concurrent_tasks, config_filename.clone(), timeout_default, report_tasks_step).into());
         } else {
             command
         },
@@ -315,7 +333,10 @@ fn main() -> Result<(), lexopt::Error> {
     let env = read_env_variables(&env_keys);
     let home = env["HOME"].clone();
 
-    let args = parse_args()?;
+    // if no_show_header
+    let report_tasks_step: usize = 10;
+
+    let args = parse_args(report_tasks_step)?;
     let show_header = args.show_header;
     let use_color = args.use_color;
     let in_repos = args.in_repos;
@@ -373,7 +394,7 @@ fn main() -> Result<(), lexopt::Error> {
             }));
         }
 
-        let mut tasks_done = 0;
+        let mut tasks_done: usize = 0;
         while let Some(result) = tasks.next().await {
             if let Ok((file, exit_code, stdout, stderr)) = result {
                 let mut exit_info = "".to_string();
@@ -401,7 +422,7 @@ fn main() -> Result<(), lexopt::Error> {
 
             if !show_header {
                 tasks_done += 1;
-                if tasks_done % 10 == 0 {
+                if tasks_done % report_tasks_step == 0 {
                     let mut remaining_tasks = 0;
                     if number_of_paths > 0 {
                         remaining_tasks = number_of_paths - tasks_done;
