@@ -3,10 +3,12 @@ name = "bash-helper"
 version = "0.1.0"
 edition = "2021"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(debug)'] }
+
 [dependencies]
 gethostname = "1.1.0"
 
-# https://www.perplexity.ai/search/rust-cargo-use-every-optimizat-1JfO7gmcTP2UuXRIMG.e6g#2
 [profile.release]
 opt-level = 3
 lto = true

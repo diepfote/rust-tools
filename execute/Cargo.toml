@@ -3,6 +3,9 @@ name = "execute"
 version = "0.1.0"
 edition = "2024"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(debug)'] }
+
 [dependencies]
 lexopt = "0.3.1"
 
@@ -15,3 +18,10 @@ futures-lite = "2.0"
 futures-util = "0.3"
 smol = "2.0.2"
 smol-timeout = "0.6.1"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1  # Reduce codegen units for better optimization

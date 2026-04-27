@@ -3,6 +3,9 @@ name = "filestile"
 version = "0.3.0"
 edition = "2024"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(debug)'] }
+
 [dependencies]
 chrono = "0.4.31"
 lexopt = "0.3.1"
@@ -12,10 +15,10 @@ regex = "1"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(debug)'] }
 
 
-# https://www.perplexity.ai/search/rust-cargo-use-every-optimizat-1JfO7gmcTP2UuXRIMG.e6g#2
 [profile.release]
 opt-level = 3
 lto = true
 strip = true
 panic = "abort"
 codegen-units = 1  # Reduce codegen units for better optimization
+
