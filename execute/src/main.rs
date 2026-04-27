@@ -36,16 +36,23 @@ struct Args {
     command: Vec<String>,
 }
 
-fn get_usage_info(max_concurrent_tasks: usize, config: String, timeout: u64, report_tasks_step: usize) -> String {
-    let rendered = format!(r#"usage: execute [options] [flags] -- <args>
+fn get_usage_info(
+    max_concurrent_tasks: usize,
+    config: String,
+    timeout: u64,
+    report_tasks_step: usize,
+) -> String {
+    let rendered = format!(
+        r#"usage: execute [options] [flags] -- <args>
   options:
     -w/--max-concurrent-tasks <num> [default: {}]
     -c/--config <file/fd> [default: {}]
     -t/--timeout <seconds> [default: {}]
   flags:
     --no-color ... disable color for `git` and `grep`  [default: colored]
-    --no-header ... will report remaining tasks to stderr every {} tasks"#
-, max_concurrent_tasks, config, timeout, report_tasks_step);
+    --no-header ... will report remaining tasks to stderr every {} tasks"#,
+        max_concurrent_tasks, config, timeout, report_tasks_step
+    );
 
     return rendered;
 }
@@ -57,7 +64,7 @@ fn parse_args(report_tasks_step: usize) -> Result<Args, lexopt::Error> {
     let mut use_color = true;
     let mut in_repos = true;
     let mut timeout: Option<Duration> = None;
-    let timeout_default:u64 = 3;  // seconds
+    let timeout_default: u64 = 3; // seconds
     let mut max_concurrent_tasks: usize = 4;
     let mut config_filename: String = "repo.conf".to_string();
     let mut command: Vec<String> = Vec::new();
@@ -92,7 +99,13 @@ fn parse_args(report_tasks_step: usize) -> Result<Args, lexopt::Error> {
                 }
             }
             Short('h') | Long("help") => {
-                return Err(get_usage_info(max_concurrent_tasks, config_filename, timeout_default, report_tasks_step).into());
+                return Err(get_usage_info(
+                    max_concurrent_tasks,
+                    config_filename,
+                    timeout_default,
+                    report_tasks_step,
+                )
+                .into());
             }
 
             Value(val) => {
@@ -114,7 +127,13 @@ fn parse_args(report_tasks_step: usize) -> Result<Args, lexopt::Error> {
         max_concurrent_tasks,
         timeout,
         command: if command.is_empty() {
-            return Err(get_usage_info(max_concurrent_tasks, config_filename.clone(), timeout_default, report_tasks_step).into());
+            return Err(get_usage_info(
+                max_concurrent_tasks,
+                config_filename.clone(),
+                timeout_default,
+                report_tasks_step,
+            )
+            .into());
         } else {
             command
         },
