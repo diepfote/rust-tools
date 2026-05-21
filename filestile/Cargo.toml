@@ -3,17 +3,10 @@ name = "filestile"
 version = "0.3.0"
 edition = "2024"
 
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(debug)'] }
-
 [dependencies]
 chrono = "0.4.31"
 lexopt = "0.3.1"
 regex = "1"
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(debug)'] }
-
 
 [profile.release]
 opt-level = 3

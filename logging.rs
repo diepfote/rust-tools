@@ -1,14 +1,14 @@
 // Based on Zed A. Shaw's log functions
 // https://learncodethehardway.com/courses/learn-c-the-hard-way/
 
-#[cfg(debug)]
+#[cfg(debug_assertions)]
 #[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => {{
         eprintln!("[DEBUG]: {}", format_args!($($arg)*));
     }};
 }
-#[cfg(not(debug))]
+#[cfg(not(debug_assertions))]
 #[macro_export]
 macro_rules! debug {
     ($($args: tt)*) => {};

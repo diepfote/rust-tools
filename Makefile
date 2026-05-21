@@ -22,18 +22,18 @@ build: fmt
 	cargo build --future-incompat-report --release
 .PHONY: build-debug
 build-debug: fmt
-	RUSTFLAGS="--cfg debug" cargo build --future-incompat-report
+	RUSTFLAGS="-C debug-assertions=yes" cargo build --future-incompat-report
 
 .PHONY: build-cross-x86_64
 build-cross-x86_64:
 	cargo build --target x86_64-unknown-linux-gnu --release
 .PHONY: build-debug-cross-x86_64
 build-debug-cross-x86_64:
-	RUSTFLAGS="--cfg debug" cargo build --target x86_64-unknown-linux-gnu
+	RUSTFLAGS="-C debug-assertions=yes" cargo build --target x86_64-unknown-linux-gnu
 
 .PHONY: build-cross-aarch64
 build-cross-aarch64:
 	cargo build --target aarch64-unknown-linux-gnu --release
 .PHONY: build-debug-cross-aarch64
 build-debug-cross-aarch64:
-	RUSTFLAGS="--cfg debug" cargo build --target aarch64-unknown-linux-gnu
+	RUSTFLAGS="-C debug-assertions=yes" cargo build --target aarch64-unknown-linux-gnu
