@@ -5,9 +5,17 @@ A replacement of [execute-in-repos](https://github.com/diepfote/golang-tools/tre
 
 ## Options and Args
 
-TODO: paste `execute --help`
+```text
+Error: usage: execute [options] [flags] -- <args>
+  options:
+    -w/--max-concurrent-tasks <num> [default: 4]
+    -c/--config <file/fd> [default: repo.conf]
+    -t/--timeout <seconds> [default: 3]
+  flags:
+    --no-color ... disable color for `git` and `grep`  [default: colored]
+    --no-header ... will report remaining tasks to stderr every 10 tasks
+```
 
-TODO: add/write help
 
 ## Usage
 
